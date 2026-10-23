@@ -724,10 +724,10 @@ export default function App() {
           </div>
 
           {/* 3 Jira Scrum Menus: 활성 스프린트 / 백로그 / 빅픽처 */}
-          <nav className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+          <nav className="flex items-center gap-0.5 sm:gap-1">
             <button
               onClick={() => setActiveMenu('board')}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-[3px] text-xs sm:text-sm font-medium whitespace-nowrap shrink-0 transition relative ${
+              className={`px-2 sm:px-3 py-1.5 rounded-[3px] text-xs sm:text-sm font-medium whitespace-nowrap shrink-0 transition relative ${
                 activeMenu === 'board'
                   ? 'text-[#0052CC] bg-[#DEEBFF]/60'
                   : 'text-[#42526E] hover:bg-[#F4F5F7]'
@@ -740,7 +740,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveMenu('backlog')}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-[3px] text-xs sm:text-sm font-medium whitespace-nowrap shrink-0 transition relative ${
+              className={`px-2 sm:px-3 py-1.5 rounded-[3px] text-xs sm:text-sm font-medium whitespace-nowrap shrink-0 transition relative ${
                 activeMenu === 'backlog'
                   ? 'text-[#0052CC] bg-[#DEEBFF]/60'
                   : 'text-[#42526E] hover:bg-[#F4F5F7]'
@@ -753,7 +753,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveMenu('roadmap')}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-[3px] text-xs sm:text-sm font-medium whitespace-nowrap shrink-0 transition relative ${
+              className={`px-2 sm:px-3 py-1.5 rounded-[3px] text-xs sm:text-sm font-medium whitespace-nowrap shrink-0 transition relative ${
                 activeMenu === 'roadmap'
                   ? 'text-[#0052CC] bg-[#DEEBFF]/60'
                   : 'text-[#42526E] hover:bg-[#F4F5F7]'
@@ -764,22 +764,25 @@ export default function App() {
                 <span className="absolute bottom-0 inset-x-0 h-[2px] bg-[#0052CC]" />
               )}
             </button>
-            <button
-              type="button"
-              onClick={() => openCreateIssueModal(activeSprintId, 'todo')}
-              className="ml-1 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-[3px] bg-[#0052CC] hover:bg-[#0065FF] text-white text-xs font-semibold whitespace-nowrap shrink-0 transition cursor-pointer shadow-xs"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>이슈 만들기</span>
-            </button>
           </nav>
         </div>
 
-        {/* Right: Sync Status & Settings */}
-        <button
-          onClick={() => setShowSettingsModal(true)}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[3px] bg-[#F4F5F7] hover:bg-[#EBECF0] text-xs font-medium text-[#42526E] whitespace-nowrap shrink-0 transition"
-        >
+        {/* Right: Create Issue + Sync Status & Settings */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => openCreateIssueModal(activeSprintId, 'todo')}
+            title="이슈 만들기"
+            className="inline-flex items-center justify-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-[3px] bg-[#0052CC] hover:bg-[#0065FF] text-white text-xs font-semibold whitespace-nowrap shrink-0 transition cursor-pointer shadow-xs"
+          >
+            <Plus className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+            <span className="hidden sm:inline">이슈 만들기</span>
+          </button>
+
+          <button
+            onClick={() => setShowSettingsModal(true)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[3px] bg-[#F4F5F7] hover:bg-[#EBECF0] text-xs font-medium text-[#42526E] whitespace-nowrap shrink-0 transition"
+          >
           <span
             className={`w-2 h-2 rounded-full ${
               !isCloudConfigured
@@ -791,11 +794,12 @@ export default function App() {
                 : 'bg-[#36B37E]'
             }`}
           />
-          <span className="hidden sm:inline">
-            {isCloudConfigured ? 'Supabase 연동' : '동기화 설정'}
-          </span>
-          <Settings className="w-3.5 h-3.5" />
-        </button>
+            <span className="hidden sm:inline">
+              {isCloudConfigured ? 'Supabase 연동' : '동기화 설정'}
+            </span>
+            <Settings className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </header>
 
       {/* MENU 1: ACTIVE SPRINT (칸반: 할 일 / 진행 중 / 완료) */}
