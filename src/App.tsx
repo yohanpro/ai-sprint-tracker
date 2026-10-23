@@ -256,7 +256,7 @@ export default function App() {
     size: 'sm' | 'md' = 'sm'
   ) => (
     <div
-      className="inline-flex items-center rounded-[3px] bg-[#EBECF0] p-0.5 gap-0.5"
+      className="inline-flex items-center rounded-[3px] bg-[#EBECF0] p-0.5 gap-0.5 shrink-0"
       onClick={(e) => e.stopPropagation()}
     >
       {(['todo', 'in_progress', 'done'] as const).map((st) => {
@@ -276,7 +276,7 @@ export default function App() {
             }}
             className={`${
               size === 'md' ? 'px-2.5 py-1 text-xs' : 'px-1.5 py-0.5 text-[11px]'
-            } rounded-[2px] font-bold transition cursor-pointer ${
+            } rounded-[2px] font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${
               active ? activeClass : 'text-[#5E6C84] hover:text-[#172B4D]'
             }`}
           >
@@ -2621,15 +2621,15 @@ export default function App() {
               </div>
 
               {/* 3. 상태 / 배정 슬롯 / 예상 시간 */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                <div className="sm:col-span-5">
                   <label className="block font-bold text-[#42526E] mb-1">초기 상태</label>
                   <div className="pt-0.5">
                     {renderStatusButtons(newTaskStatus, (next) => setNewTaskStatus(next), 'md')}
                   </div>
                 </div>
 
-                <div>
+                <div className="sm:col-span-4">
                   <label className="block font-bold text-[#42526E] mb-1">배정 요일 슬롯</label>
                   <select
                     value={newTaskSlot}
@@ -2644,8 +2644,10 @@ export default function App() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="block font-bold text-[#42526E] mb-1">예상 소요 시간 (h)</label>
+                <div className="sm:col-span-3">
+                  <label className="block font-bold text-[#42526E] mb-1 whitespace-nowrap">
+                    예상 시간 (h)
+                  </label>
                   <input
                     type="number"
                     step="0.5"
