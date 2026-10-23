@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookOpen,
+  Check,
   CheckSquare,
   ChevronDown,
   ChevronRight,
@@ -115,6 +116,103 @@ export default function App() {
   const [syncConfig, setSyncConfig] = useState<SyncConfig>(() => getSyncConfig());
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+
+  // Inline copy feedback state ('guide-code' | 'supabase-sql' | null)
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const copyTimeoutRef = useRef<number | null>(null);
+
+  const handleCopyText = (key: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    if (copyTimeoutRef.current) window.clearTimeout(copyTimeoutRef.current);
+    copyTimeoutRef.current = window.setTimeout(() => {
+      setCopiedKey((prev) => (prev === key ? null : prev));
+    }, 1500);
+  };
+
+  // Modal UX: ESC key to close, background scroll lock, and Mobile (Galaxy) Back Gesture support
+  const isAnyModalOpen = Boolean(selectedIssue || showCompleteModal || showSettingsModal);
+  const modalHistoryPushedRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (modalHistoryPushedRef.current) {
+        modalHistoryPushedRef.current = false;
+        setSelectedIssue(null);
+        setShowCompleteModal(false);
+        setShowSettingsModal(false);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (isAnyModalOpen) {
+      document.body.style.overflow = 'hidden';
+      if (!modalHistoryPushedRef.current) {
+        window.history.pushState({ modalOpen: true }, '');
+        modalHistoryPushedRef.current = true;
+      }
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setSelectedIssue(null);
+          setShowCompleteModal(false);
+          setShowSettingsModal(false);
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.body.style.overflow = '';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    } else {
+      document.body.style.overflow = '';
+      if (modalHistoryPushedRef.current) {
+        modalHistoryPushedRef.current = false;
+        window.history.back();
+      }
+    }
+  }, [isAnyModalOpen]);
+
+  // One-click segmented status switcher (할 일 / 진행 중 / 완료)
+  const renderStatusButtons = (
+    current: IssueStatus,
+    onChange: (next: IssueStatus) => void,
+    size: 'sm' | 'md' = 'sm'
+  ) => (
+    <div
+      className="inline-flex items-center rounded-[3px] bg-[#EBECF0] p-0.5 gap-0.5"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {(['todo', 'in_progress', 'done'] as const).map((st) => {
+        const active = current === st;
+        const activeClass =
+          st === 'todo'
+            ? 'bg-white text-[#42526E] shadow-xs'
+            : st === 'in_progress'
+            ? 'bg-[#0052CC] text-white shadow-xs'
+            : 'bg-[#006644] text-white shadow-xs';
+        return (
+          <button
+            key={st}
+            type="button"
+            onClick={() => {
+              if (current !== st) onChange(st);
+            }}
+            className={`${
+              size === 'md' ? 'px-2.5 py-1 text-xs' : 'px-1.5 py-0.5 text-[11px]'
+            } rounded-[2px] font-bold transition cursor-pointer ${
+              active ? activeClass : 'text-[#5E6C84] hover:text-[#172B4D]'
+            }`}
+          >
+            {STATUS_META[st].label}
+          </button>
+        );
+      })}
+    </div>
+  );
 
   const isCloudConfigured = Boolean(
     syncConfig.supabaseUrl.trim() && syncConfig.supabaseAnonKey.trim()
@@ -821,21 +919,11 @@ export default function App() {
                               <span className="px-2 py-0.5 rounded-full bg-[#DFE1E6] text-[#172B4D] text-[11px] font-bold">
                                 {task.hours}h
                               </span>
-                              <select
-                                value={colStatus}
-                                onChange={(e) =>
-                                  setTaskStatus(
-                                    activeSprint.id,
-                                    task.id,
-                                    e.target.value as IssueStatus
-                                  )
-                                }
-                                className={`text-[11px] font-bold px-1.5 py-0.5 rounded-[3px] cursor-pointer outline-none ${STATUS_META[colStatus].lozengeClass}`}
-                              >
-                                <option value="todo">할 일</option>
-                                <option value="in_progress">진행 중</option>
-                                <option value="done">완료</option>
-                              </select>
+                              {renderStatusButtons(
+                                colStatus,
+                                (next) => setTaskStatus(activeSprint.id, task.id, next),
+                                'sm'
+                              )}
                             </div>
                           </div>
                         </div>
@@ -984,17 +1072,11 @@ export default function App() {
                         <span className="px-2 py-0.5 rounded-full bg-[#DFE1E6] text-[#172B4D] text-[11px] font-bold">
                           {item.duration}
                         </span>
-                        <select
-                          value={st}
-                          onChange={(e) =>
-                            setDDayStatus(item.id, e.target.value as IssueStatus)
-                          }
-                          className={`text-[11px] font-bold px-2 py-0.5 rounded-[3px] cursor-pointer outline-none ${STATUS_META[st].lozengeClass}`}
-                        >
-                          <option value="todo">할 일</option>
-                          <option value="in_progress">진행 중</option>
-                          <option value="done">완료</option>
-                        </select>
+                        {renderStatusButtons(
+                          st,
+                          (next) => setDDayStatus(item.id, next),
+                          'sm'
+                        )}
                       </div>
                     </div>
                   );
@@ -1142,17 +1224,11 @@ export default function App() {
                             <span className="px-2 py-0.5 rounded-full bg-[#DFE1E6] text-[#172B4D] text-[11px] font-bold w-10 text-center">
                               {task.hours}h
                             </span>
-                            <select
-                              value={st}
-                              onChange={(e) =>
-                                setTaskStatus(sp.id, task.id, e.target.value as IssueStatus)
-                              }
-                              className={`text-[11px] font-bold px-2 py-0.5 rounded-[3px] cursor-pointer outline-none ${STATUS_META[st].lozengeClass}`}
-                            >
-                              <option value="todo">할 일</option>
-                              <option value="in_progress">진행 중</option>
-                              <option value="done">완료</option>
-                            </select>
+                            {renderStatusButtons(
+                              st,
+                              (next) => setTaskStatus(sp.id, task.id, next),
+                              'sm'
+                            )}
                             {task.id.startsWith('custom-') && (
                               <button
                                 onClick={() => deleteIssue(sp.id, task.id)}
@@ -1322,24 +1398,20 @@ export default function App() {
                   <span>{contextLabel}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <select
-                    value={currentStatus}
-                    onChange={(e) => {
-                      const next = e.target.value as IssueStatus;
+                  {renderStatusButtons(
+                    currentStatus,
+                    (next) => {
                       if (isSprintIssue && targetSprint && targetTask) {
                         setTaskStatus(targetSprint.id, targetTask.id, next);
                       } else if (targetDDay) {
                         setDDayStatus(targetDDay.id, next);
                       }
-                    }}
-                    className={`text-xs font-bold px-2.5 py-1 rounded-[3px] cursor-pointer outline-none ${STATUS_META[currentStatus].lozengeClass}`}
-                  >
-                    <option value="todo">할 일 (TO DO)</option>
-                    <option value="in_progress">진행 중 (IN PROGRESS)</option>
-                    <option value="done">완료 (DONE)</option>
-                  </select>
+                    },
+                    'md'
+                  )}
                   <button
                     onClick={() => setSelectedIssue(null)}
+                    title="닫기 (ESC)"
                     className="p-1 rounded-[3px] hover:bg-[#F4F5F7] text-[#5E6C84] hover:text-[#172B4D]"
                   >
                     <X className="w-4 h-4" />
@@ -1383,14 +1455,24 @@ export default function App() {
                         <div className="flex items-center justify-between text-[11px] text-[#A5ADBA] font-sans">
                           <span>참고 명령어 / 예시 코드</span>
                           <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(guide.codeOrCommand!);
-                              alert('명령어/코드가 클립보드에 복사되었습니다.');
-                            }}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] bg-white/10 hover:bg-white/20 text-white"
+                            onClick={() => handleCopyText('guide-code', guide.codeOrCommand!)}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] transition ${
+                              copiedKey === 'guide-code'
+                                ? 'bg-[#006644] text-white font-semibold'
+                                : 'bg-white/10 hover:bg-white/20 text-white'
+                            }`}
                           >
-                            <Copy className="w-3 h-3" />
-                            <span>복사</span>
+                            {copiedKey === 'guide-code' ? (
+                              <>
+                                <Check className="w-3 h-3" />
+                                <span>복사됨</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3" />
+                                <span>복사</span>
+                              </>
+                            )}
                           </button>
                         </div>
                         <pre className="whitespace-pre-wrap leading-relaxed">
@@ -1452,8 +1534,14 @@ export default function App() {
 
       {/* Jira "Complete Sprint (스프린트 완료)" Modal */}
       {showCompleteModal && (
-        <div className="fixed inset-0 z-50 bg-[#091E42]/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-[3px] max-w-lg w-full p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div
+          onClick={() => setShowCompleteModal(false)}
+          className="fixed inset-0 z-50 bg-[#091E42]/50 flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-[3px] max-w-lg w-full p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto"
+          >
             <h2 className="text-base font-semibold text-[#172B4D]">
               {activeSprint.title} 완료 ({activeSprint.goal})
             </h2>
@@ -1624,15 +1712,21 @@ export default function App() {
 
       {/* Supabase Sync & Backup Modal */}
       {showSettingsModal && (
-        <div className="fixed inset-0 z-50 bg-[#091E42]/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-[3px] max-w-md w-full p-5 shadow-xl space-y-4">
+        <div
+          onClick={() => setShowSettingsModal(false)}
+          className="fixed inset-0 z-50 bg-[#091E42]/50 flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-[3px] max-w-md w-full p-5 shadow-xl space-y-4"
+          >
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-[#172B4D]">Supabase 동기화 설정</h3>
               <button
                 onClick={() => setShowSettingsModal(false)}
                 className="text-xs text-[#5E6C84] hover:text-[#172B4D]"
               >
-                닫기
+                닫기 (ESC)
               </button>
             </div>
 
@@ -1709,14 +1803,24 @@ export default function App() {
 
             <div className="pt-3 border-t border-[#DFE1E6] flex items-center justify-between text-xs text-[#5E6C84]">
               <button
-                onClick={() => {
-                  navigator.clipboard.writeText(SUPABASE_SETUP_SQL);
-                  alert('SQL이 복사되었습니다.');
-                }}
-                className="inline-flex items-center gap-1 hover:text-[#172B4D]"
+                onClick={() => handleCopyText('supabase-sql', SUPABASE_SETUP_SQL)}
+                className={`inline-flex items-center gap-1 transition ${
+                  copiedKey === 'supabase-sql'
+                    ? 'text-[#006644] font-semibold'
+                    : 'hover:text-[#172B4D]'
+                }`}
               >
-                <Copy className="w-3 h-3" />
-                <span>초기 SQL 복사</span>
+                {copiedKey === 'supabase-sql' ? (
+                  <>
+                    <Check className="w-3 h-3" />
+                    <span>SQL 복사됨</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3 h-3" />
+                    <span>초기 SQL 복사</span>
+                  </>
+                )}
               </button>
               <div className="flex items-center gap-3">
                 <button
