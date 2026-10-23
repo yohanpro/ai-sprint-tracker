@@ -20,9 +20,9 @@ export function getSyncConfig(): SyncConfig {
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<SyncConfig>;
       return {
-        supabaseUrl: parsed.supabaseUrl || envUrl,
-        supabaseAnonKey: parsed.supabaseAnonKey || envKey,
-        syncKey: parsed.syncKey || envSyncKey,
+        supabaseUrl: parsed.supabaseUrl?.trim() || envUrl,
+        supabaseAnonKey: parsed.supabaseAnonKey?.trim() || envKey,
+        syncKey: parsed.syncKey?.trim() || envSyncKey,
       };
     }
   } catch {
