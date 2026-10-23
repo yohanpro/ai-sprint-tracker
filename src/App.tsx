@@ -129,6 +129,20 @@ export default function App() {
     return { 0: true, [def]: true, [Math.min(13, def + 1)]: true };
   });
 
+  // BigPicture WBS tree expanded state (Phase 1~4 & Sprint 1~13)
+  const [roadmapExpandedPhases, setRoadmapExpandedPhases] = useState<Record<number, boolean>>({
+    1: true,
+    2: true,
+    3: true,
+    4: true,
+  });
+  const [roadmapExpandedSprints, setRoadmapExpandedSprints] = useState<Record<number, boolean>>(
+    () => {
+      const def = detectDefaultSprintId(loadLocalState().sprints);
+      return { [def]: true };
+    }
+  );
+
   // Drag and drop state
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
 
@@ -1612,34 +1626,80 @@ export default function App() {
               </div>
             </div>
 
-            {/* Jira BigPicture Gantt / Timeline Table */}
-            <div className="bg-white rounded-[3px] border border-[#DFE1E6] overflow-hidden">
-              {/* Desktop Timeline Column Header */}
-              <div className="hidden lg:grid lg:grid-cols-12 bg-[#F4F5F7] border-b border-[#DFE1E6] text-[11px] font-bold text-[#5E6C84]">
-                <div className="col-span-5 px-3 py-2 border-r border-[#DFE1E6]">
-                  단계 (Phase) / 스프린트 목표 및 완료 기준
+            {/* Jira BigPicture WBS Tree Hierarchy Table */}
+            <div className="bg-white rounded-[3px] border border-[#DFE1E6] overflow-hidden shadow-xs">
+              {/* Top Toolbar: Expand/Collapse Controls */}
+              <div className="bg-[#F4F5F7] px-3 py-2 border-b border-[#DFE1E6] flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-[#172B4D]">
+                  <span>WBS 작업 분류 체계 (BigPicture Tree)</span>
+                  <span className="text-[11px] font-normal text-[#5E6C84]">
+                    · 스프린트를 클릭하면 하위 태스크 목록이 트리 형태로 펼쳐집니다
+                  </span>
                 </div>
-                <div className="col-span-7 grid grid-cols-13">
-                  {state.sprints.map((s) => {
-                    const isCurrent = s.id === activeSprintId;
-                    return (
-                      <div
-                        key={s.id}
-                        className={`py-2 text-center border-r last:border-r-0 border-[#DFE1E6] ${
-                          isCurrent ? 'bg-[#DEEBFF] text-[#0052CC]' : ''
-                        }`}
-                      >
-                        <div>S{s.id}</div>
-                        <div className="text-[9px] font-normal">
-                          {s.period.split(' ')[0]}
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRoadmapExpandedPhases({ 1: true, 2: true, 3: true, 4: true });
+                      const allSp: Record<number, boolean> = {};
+                      state.sprints.forEach((s) => {
+                        allSp[s.id] = true;
+                      });
+                      setRoadmapExpandedSprints(allSp);
+                    }}
+                    className="px-2 py-1 rounded-[3px] bg-white border border-[#DFE1E6] hover:bg-[#EBECF0] text-[11px] font-semibold text-[#42526E] cursor-pointer"
+                  >
+                    전체 태스크 펼치기
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRoadmapExpandedSprints({})}
+                    className="px-2 py-1 rounded-[3px] bg-white border border-[#DFE1E6] hover:bg-[#EBECF0] text-[11px] font-semibold text-[#42526E] cursor-pointer"
+                  >
+                    태스크 모두 접기
+                  </button>
                 </div>
               </div>
 
-              {/* Phase 1 ~ 4 Sections */}
+              {/* Column Header (Jira BigPicture Style) */}
+              <div className="grid grid-cols-12 bg-[#FAFBFC] border-b border-[#DFE1E6] text-[11px] font-bold text-[#5E6C84]">
+                <div className="col-span-3 sm:col-span-2 px-2.5 py-2 border-r border-[#DFE1E6]">
+                  Key
+                </div>
+                <div className="col-span-6 sm:col-span-6 px-2.5 py-2 border-r border-[#DFE1E6]">
+                  Summary (계층 구조: Phase → Sprint → Task)
+                </div>
+                <div className="col-span-3 sm:col-span-2 px-2.5 py-2 sm:border-r border-[#DFE1E6] text-center">
+                  Type / 상태
+                </div>
+                <div className="hidden sm:block sm:col-span-2 px-2.5 py-2 text-right">
+                  진행률 / 일정
+                </div>
+              </div>
+
+              {/* Root Row */}
+              <div className="grid grid-cols-12 items-center bg-[#F4F5F7]/70 border-b border-[#DFE1E6] text-xs font-bold text-[#172B4D]">
+                <div className="col-span-3 sm:col-span-2 px-2.5 py-2 border-r border-[#DFE1E6] text-[#0052CC] font-mono text-[11px]">
+                  ROOT
+                </div>
+                <div className="col-span-6 sm:col-span-6 px-2.5 py-2 border-r border-[#DFE1E6] flex items-center gap-1.5">
+                  <ChevronDown className="w-3.5 h-3.5 text-[#42526E] shrink-0" />
+                  <span className="truncate">
+                    AI 엔지니어 전환 6개월 로드맵 (13 Sprints · {totalTaskCount} Tasks)
+                  </span>
+                </div>
+                <div className="col-span-3 sm:col-span-2 px-2 py-2 sm:border-r border-[#DFE1E6] flex justify-center">
+                  <span className="px-1.5 py-0.5 rounded-[3px] bg-[#EAE6FF] text-[#403294] text-[10px] font-bold uppercase">
+                    MAIN
+                  </span>
+                </div>
+                <div className="hidden sm:flex sm:col-span-2 px-2.5 py-2 items-center justify-end gap-2 text-[11px] text-[#42526E]">
+                  <span>{overallPct}%</span>
+                  <span className="text-[#5E6C84] font-normal">26.10 ~ 27.04</span>
+                </div>
+              </div>
+
+              {/* Phase 1 ~ 4 Tree Nodes */}
               {([1, 2, 3, 4] as const).map((phaseNum) => {
                 const phaseInfo = PHASE_META[phaseNum];
                 const phaseSprints = state.sprints.filter((s) => s.phase === phaseNum);
@@ -1647,148 +1707,240 @@ export default function App() {
                 const phaseDone = phaseTasks.filter((t) => getTaskStatus(t) === 'done').length;
                 const phasePct =
                   phaseTasks.length > 0 ? Math.round((phaseDone / phaseTasks.length) * 100) : 0;
+                const isPhaseOpen = Boolean(roadmapExpandedPhases[phaseNum]);
 
                 return (
-                  <div key={phaseNum} className="border-b last:border-b-0 border-[#DFE1E6]">
-                    {/* Phase Epic Header Row */}
-                    <div className="bg-[#FAFBFC] px-3 py-2.5 border-b border-[#DFE1E6] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className="space-y-0.5">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span
-                            className={`px-2 py-0.5 rounded-[3px] text-xs font-bold ${phaseInfo.badgeClass}`}
-                          >
-                            {phaseInfo.title}
-                          </span>
-                          <span className="text-xs text-[#5E6C84] font-medium">
-                            {phaseInfo.period}
-                          </span>
-                        </div>
-                        <p className="text-xs text-[#42526E]">{phaseInfo.summary}</p>
+                  <React.Fragment key={phaseNum}>
+                    {/* Level 1: Phase Row */}
+                    <div
+                      onClick={() =>
+                        setRoadmapExpandedPhases((prev) => ({
+                          ...prev,
+                          [phaseNum]: !prev[phaseNum],
+                        }))
+                      }
+                      className="grid grid-cols-12 items-center bg-[#FAFBFC] hover:bg-[#F4F5F7] border-b border-[#DFE1E6] cursor-pointer transition"
+                    >
+                      <div className="col-span-3 sm:col-span-2 px-2.5 py-2 border-r border-[#DFE1E6] text-[#0052CC] font-mono text-[11px] font-bold">
+                        PHASE-{phaseNum}
                       </div>
-                      <div className="flex items-center gap-2 shrink-0 text-xs">
-                        <div className="w-24 h-2 bg-[#DFE1E6] rounded-full overflow-hidden">
+                      <div className="col-span-6 sm:col-span-6 px-2.5 py-2 border-r border-[#DFE1E6] flex items-center gap-1.5 min-w-0">
+                        <span className="text-[#97A0AF] font-mono text-xs select-none pl-1">
+                          ├─
+                        </span>
+                        {isPhaseOpen ? (
+                          <ChevronDown className="w-3.5 h-3.5 text-[#42526E] shrink-0" />
+                        ) : (
+                          <ChevronRight className="w-3.5 h-3.5 text-[#42526E] shrink-0" />
+                        )}
+                        <span
+                          className={`px-1.5 py-0.5 rounded-[3px] text-[11px] font-bold shrink-0 ${phaseInfo.badgeClass}`}
+                        >
+                          {phaseInfo.title}
+                        </span>
+                        <span className="text-xs text-[#42526E] truncate hidden md:inline">
+                          {phaseInfo.summary}
+                        </span>
+                      </div>
+                      <div className="col-span-3 sm:col-span-2 px-2 py-2 sm:border-r border-[#DFE1E6] flex justify-center">
+                        <span className="px-1.5 py-0.5 rounded-[3px] bg-[#DFE1E6] text-[#42526E] text-[10px] font-bold uppercase">
+                          PHASE
+                        </span>
+                      </div>
+                      <div className="hidden sm:flex sm:col-span-2 px-2.5 py-2 items-center justify-end gap-2 text-[11px]">
+                        <div className="w-14 h-1.5 bg-[#DFE1E6] rounded-full overflow-hidden">
                           <div
                             style={{ width: `${phasePct}%` }}
                             className={`h-full ${phaseInfo.barClass}`}
                           />
                         </div>
-                        <span className="font-bold text-[#172B4D] w-9 text-right">
-                          {phasePct}%
-                        </span>
+                        <span className="font-bold text-[#172B4D] w-8 text-right">{phasePct}%</span>
                       </div>
                     </div>
 
-                    {/* Sprints inside this Phase */}
-                    <div className="divide-y divide-[#DFE1E6]">
-                      {phaseSprints.map((sp) => {
+                    {/* Level 2: Sprint Rows under this Phase */}
+                    {isPhaseOpen &&
+                      phaseSprints.map((sp) => {
                         const spDone = sp.tasks.filter((t) => getTaskStatus(t) === 'done').length;
                         const spTotal = sp.tasks.length;
                         const spPct = spTotal > 0 ? Math.round((spDone / spTotal) * 100) : 0;
                         const isCurrent = sp.id === activeSprintId;
+                        const isSprintOpen = Boolean(roadmapExpandedSprints[sp.id]);
                         const hours = getSprintHourBreakdown(sp);
                         const targetH = getEffectiveTargetHours(sp);
 
                         return (
-                          <div
-                            key={sp.id}
-                            onClick={() => {
-                              setActiveSprintId(sp.id);
-                              setActiveMenu('board');
-                            }}
-                            className={`grid grid-cols-1 lg:grid-cols-12 hover:bg-[#F4F5F7] transition cursor-pointer ${
-                              isCurrent ? 'bg-[#DEEBFF]/20' : ''
-                            }`}
-                          >
-                            {/* Left Column: Sprint Title, Goal, DoD */}
-                            <div className="lg:col-span-5 px-3 py-2.5 lg:border-r border-[#DFE1E6] space-y-1">
-                              <div className="flex flex-wrap items-center justify-between gap-1.5">
-                                <div className="flex items-center gap-1.5">
+                          <React.Fragment key={sp.id}>
+                            {/* Sprint Tree Row */}
+                            <div
+                              onClick={() =>
+                                setRoadmapExpandedSprints((prev) => ({
+                                  ...prev,
+                                  [sp.id]: !prev[sp.id],
+                                }))
+                              }
+                              className={`grid grid-cols-12 items-center border-b border-[#DFE1E6] cursor-pointer transition ${
+                                isSprintOpen
+                                  ? 'bg-[#E9F2FF] hover:bg-[#DEEBFF]'
+                                  : isCurrent
+                                  ? 'bg-[#DEEBFF]/35 hover:bg-[#DEEBFF]/60'
+                                  : 'bg-white hover:bg-[#F4F5F7]'
+                              }`}
+                            >
+                              {/* Key Column */}
+                              <div className="col-span-3 sm:col-span-2 px-2.5 py-2.5 border-r border-[#DFE1E6] flex items-center gap-1 min-w-0">
+                                <span className="text-[#0052CC] font-mono text-[11px] font-bold truncate">
+                                  SPRINT-{String(sp.id).padStart(2, '0')}
+                                </span>
+                                {isCurrent && (
+                                  <span className="px-1 py-0.2 rounded-[2px] bg-[#0052CC] text-white text-[9px] font-bold shrink-0">
+                                    현재
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Summary Tree Column */}
+                              <div className="col-span-6 sm:col-span-6 px-2.5 py-2.5 border-r border-[#DFE1E6] min-w-0">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="text-[#97A0AF] font-mono text-xs select-none pl-4 shrink-0">
+                                    │ ├─
+                                  </span>
+                                  {isSprintOpen ? (
+                                    <ChevronDown className="w-3.5 h-3.5 text-[#0052CC] shrink-0" />
+                                  ) : (
+                                    <ChevronRight className="w-3.5 h-3.5 text-[#42526E] shrink-0" />
+                                  )}
                                   <span
-                                    className={`text-xs font-bold ${
-                                      isCurrent ? 'text-[#0052CC]' : 'text-[#172B4D]'
+                                    className={`text-xs font-bold truncate ${
+                                      isSprintOpen || isCurrent
+                                        ? 'text-[#0052CC]'
+                                        : 'text-[#172B4D]'
                                     }`}
                                   >
-                                    {sp.title}
+                                    {sp.title}: {sp.goal}
                                   </span>
-                                  <span className="text-[11px] text-[#5E6C84]">({sp.period})</span>
-                                  {isCurrent && (
-                                    <span className="px-1.5 py-0.5 rounded-[3px] bg-[#0052CC] text-white text-[10px] font-bold">
-                                      현재 보드
-                                    </span>
-                                  )}
                                   {sp.milestoneTag && (
-                                    <span className="px-1.5 py-0.5 rounded-[3px] bg-[#FFFAE6] text-[#974F0C] border border-[#FFE380] text-[10px] font-bold">
+                                    <span className="hidden md:inline-block px-1.5 py-0.5 rounded-[3px] bg-[#FFFAE6] text-[#974F0C] border border-[#FFE380] text-[10px] font-bold shrink-0">
                                       {sp.milestoneTag}
                                     </span>
                                   )}
-                                  {sp.retro.goalAchieved === true && (
-                                    <span className="px-1.5 py-0.5 rounded-[3px] bg-[#E3FCEF] text-[#006644] text-[10px] font-bold">
-                                      완료
-                                    </span>
-                                  )}
+                                  <span className="text-[11px] text-[#5E6C84] shrink-0">
+                                    ({spDone}/{spTotal})
+                                  </span>
                                 </div>
-                                <span className="text-[11px] font-semibold text-[#5E6C84]">
+                                <div className="pl-11 text-[11px] text-[#5E6C84] truncate mt-0.5">
+                                  완료 기준: {sp.dod}
+                                </div>
+                              </div>
+
+                              {/* Type / Board Jump Action */}
+                              <div className="col-span-3 sm:col-span-2 px-2 py-2.5 sm:border-r border-[#DFE1E6] flex items-center justify-center gap-1">
+                                <span className="px-1.5 py-0.5 rounded-[3px] bg-[#DEEBFF] text-[#0052CC] text-[10px] font-bold uppercase">
+                                  SPRINT
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveSprintId(sp.id);
+                                    setActiveMenu('board');
+                                  }}
+                                  className="px-1.5 py-0.5 rounded-[3px] bg-white border border-[#DFE1E6] hover:bg-[#0052CC] hover:text-white text-[10px] font-semibold text-[#42526E] transition cursor-pointer"
+                                  title="이 스프린트 칸반 보드로 이동"
+                                >
+                                  보드↗
+                                </button>
+                              </div>
+
+                              {/* Progress / Period */}
+                              <div className="hidden sm:flex sm:col-span-2 px-2.5 py-2.5 flex-col items-end justify-center text-[11px]">
+                                <span className="font-bold text-[#172B4D]">
                                   {hours.doneH}/{targetH}h · {spPct}%
                                 </span>
-                              </div>
-
-                              <div className="text-xs font-semibold text-[#172B4D]">
-                                {sp.goal}
-                              </div>
-                              <div className="text-[11px] text-[#5E6C84] line-clamp-1">
-                                완료 기준: {sp.dod}
-                              </div>
-
-                              {/* Mobile progress bar */}
-                              <div className="lg:hidden pt-1">
-                                <div className="w-full h-1.5 bg-[#DFE1E6] rounded-full overflow-hidden">
-                                  <div
-                                    style={{ width: `${spPct}%` }}
-                                    className={`h-full ${phaseInfo.barClass}`}
-                                  />
-                                </div>
+                                <span className="text-[10px] text-[#5E6C84]">{sp.period}</span>
                               </div>
                             </div>
 
-                            {/* Right Column (Desktop): 13-Sprint Gantt Bar Grid */}
-                            <div className="hidden lg:grid lg:col-span-7 grid-cols-13 items-center relative">
-                              {state.sprints.map((colSp) => {
-                                const isActiveCell = colSp.id === sp.id;
-                                const isCurrentCol = colSp.id === activeSprintId;
+                            {/* Level 3: Child Task Rows (Expanded when Sprint is clicked) */}
+                            {isSprintOpen &&
+                              sp.tasks.map((task, idx) => {
+                                const st = getTaskStatus(task);
+                                const isLastTask = idx === sp.tasks.length - 1;
+                                const dotColor =
+                                  st === 'done'
+                                    ? 'bg-[#006644]'
+                                    : st === 'in_progress'
+                                    ? 'bg-[#0052CC]'
+                                    : 'bg-[#97A0AF]';
+
                                 return (
                                   <div
-                                    key={colSp.id}
-                                    className={`h-full flex items-center px-1 border-r last:border-r-0 border-[#F4F5F7] ${
-                                      isCurrentCol ? 'bg-[#DEEBFF]/25' : ''
-                                    }`}
+                                    key={task.id}
+                                    onClick={() =>
+                                      setSelectedIssue({
+                                        type: 'sprint',
+                                        sprintId: sp.id,
+                                        taskId: task.id,
+                                      })
+                                    }
+                                    className="grid grid-cols-12 items-center bg-[#F8FAFC] hover:bg-[#EEF5FF] border-b border-[#DFE1E6] cursor-pointer transition text-xs"
                                   >
-                                    {isActiveCell && (
-                                      <div
-                                        className="w-full h-6 rounded-[3px] bg-[#DFE1E6] overflow-hidden relative flex items-center justify-center shadow-xs"
-                                        title={`${sp.title}: ${spDone}/${spTotal} 완료 (${spPct}%)`}
+                                    {/* Task Key */}
+                                    <div className="col-span-3 sm:col-span-2 px-2.5 py-2 border-r border-[#DFE1E6] text-[#5E6C84] font-mono text-[11px] pl-4 flex items-center gap-1">
+                                      <CheckSquare className="w-3 h-3 text-[#4BADE8] shrink-0" />
+                                      <span className="truncate">{task.id.toUpperCase()}</span>
+                                    </div>
+
+                                    {/* Task Tree Connectors + Title */}
+                                    <div className="col-span-6 sm:col-span-6 px-2.5 py-2 border-r border-[#DFE1E6] flex items-center gap-1.5 min-w-0">
+                                      <span className="text-[#97A0AF] font-mono text-xs select-none pl-7 shrink-0">
+                                        {isLastTask ? '│   └─' : '│   ├─'}
+                                      </span>
+                                      <span
+                                        className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`}
+                                      />
+                                      <span
+                                        className={`truncate ${
+                                          st === 'done'
+                                            ? 'line-through text-[#6B778C]'
+                                            : 'text-[#172B4D] font-medium'
+                                        }`}
                                       >
-                                        <div
-                                          style={{ width: `${spPct}%` }}
-                                          className={`absolute inset-y-0 left-0 ${phaseInfo.barClass} opacity-85`}
-                                        />
-                                        <span
-                                          className={`relative z-10 text-[10px] font-bold ${
-                                            spPct >= 50 ? 'text-white' : 'text-[#172B4D]'
-                                          }`}
-                                        >
-                                          {spPct}%
+                                        {task.title}
+                                      </span>
+                                      {task.note && task.note.trim() && (
+                                        <span className="px-1.5 py-0.2 rounded-[2px] bg-[#E3FCEF] text-[#006644] text-[10px] font-semibold shrink-0">
+                                          메모
                                         </span>
-                                      </div>
-                                    )}
+                                      )}
+                                    </div>
+
+                                    {/* Inline Quick Status Switch */}
+                                    <div
+                                      className="col-span-3 sm:col-span-2 px-1.5 py-1.5 sm:border-r border-[#DFE1E6] flex justify-center"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      {renderStatusButtons(st, (next) =>
+                                        setTaskStatus(sp.id, task.id, next)
+                                      )}
+                                    </div>
+
+                                    {/* Task Slot & Hours */}
+                                    <div className="hidden sm:flex sm:col-span-2 px-2.5 py-2 items-center justify-end gap-1.5 text-[11px] text-[#5E6C84]">
+                                      <span className="px-1.5 py-0.5 rounded-[3px] bg-white border border-[#DFE1E6] text-[10px] font-medium text-[#42526E]">
+                                        {task.slot}
+                                      </span>
+                                      <span className="font-semibold text-[#172B4D]">
+                                        {task.hours}h
+                                      </span>
+                                    </div>
                                   </div>
                                 );
                               })}
-                            </div>
-                          </div>
+                          </React.Fragment>
                         );
                       })}
-                    </div>
-                  </div>
+                  </React.Fragment>
                 );
               })}
             </div>
