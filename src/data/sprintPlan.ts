@@ -6,6 +6,7 @@ export interface DDayItem {
   duration: string;
   done: boolean;
   status?: IssueStatus;
+  note?: string;
 }
 
 export interface SprintTask {
@@ -19,6 +20,7 @@ export interface SprintTask {
   rolloverCount: number; // 이월 횟수 (2회 연속 이월 시 범위 절반 축소 알림)
   halved?: boolean; // 범위 절반 축소 적용 여부
   originalTitle?: string;
+  note?: string; // 내 실행 결과 / 메모 기록란
 }
 
 export function getTaskStatus(task: { done: boolean; status?: IssueStatus }): IssueStatus {

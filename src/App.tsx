@@ -1,26 +1,29 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  BookOpen,
   CheckSquare,
   ChevronDown,
   ChevronRight,
   Copy,
   Download,
+  FileText,
   Plus,
   RefreshCw,
   Scissors,
   Settings,
   Trash2,
   Upload,
+  X,
 } from 'lucide-react';
 import {
   AppState,
-  formatIssueKey,
   getTaskStatus,
   IssueStatus,
   SPRINT_SLOTS,
   SprintData,
   SprintTask,
 } from './data/sprintPlan';
+import { getTaskGuide } from './data/taskGuides';
 import {
   getSyncConfig,
   loadLocalState,
@@ -89,6 +92,13 @@ export default function App() {
   const [newTaskTitle, setNewTaskTitle] = useState<string>('');
   const [newTaskHours, setNewTaskHours] = useState<string>('1');
   const [newTaskSlot, setNewTaskSlot] = useState<string>('1주 토');
+
+  // Selected Issue Detail Modal state
+  const [selectedIssue, setSelectedIssue] = useState<
+    | { type: 'sprint'; sprintId: number; taskId: string }
+    | { type: 'dday'; id: string }
+    | null
+  >(null);
 
   // Complete Sprint Modal state
   const [showCompleteModal, setShowCompleteModal] = useState<boolean>(false);
@@ -258,6 +268,29 @@ export default function App() {
       ...prev,
       dDayChecklist: prev.dDayChecklist.map((item) =>
         item.id === id ? { ...item, status: nextStatus, done: nextStatus === 'done' } : item
+      ),
+    }));
+  };
+
+  const updateTaskNote = (sprintId: number, taskId: string, note: string) => {
+    updateAppState((prev) => ({
+      ...prev,
+      sprints: prev.sprints.map((sp) =>
+        sp.id !== sprintId
+          ? sp
+          : {
+              ...sp,
+              tasks: sp.tasks.map((t) => (t.id === taskId ? { ...t, note } : t)),
+            }
+      ),
+    }));
+  };
+
+  const updateDDayNote = (id: string, note: string) => {
+    updateAppState((prev) => ({
+      ...prev,
+      dDayChecklist: prev.dDayChecklist.map((item) =>
+        item.id === id ? { ...item, note } : item
       ),
     }));
   };
@@ -702,8 +735,7 @@ export default function App() {
                   {/* Issue Cards */}
                   <div className="space-y-2 flex-1">
                     {colTasks.map((task) => {
-                      const taskIndex = activeSprint.tasks.findIndex((x) => x.id === task.id);
-                      const issueKey = formatIssueKey(activeSprint.id, taskIndex, task.id);
+                      const guide = getTaskGuide(task.id);
                       const isDoubleRollover = task.rolloverCount >= 2;
 
                       return (
@@ -711,10 +743,17 @@ export default function App() {
                           key={task.id}
                           draggable
                           onDragStart={() => setDraggedTaskId(task.id)}
-                          className="bg-white rounded-[3px] p-3 shadow-[0_1px_2px_rgba(9,30,66,0.18)] border border-transparent hover:border-[#4C9AFF] transition cursor-grab active:cursor-grabbing space-y-2.5"
+                          onClick={() =>
+                            setSelectedIssue({
+                              type: 'sprint',
+                              sprintId: activeSprint.id,
+                              taskId: task.id,
+                            })
+                          }
+                          className="bg-white rounded-[3px] p-3 shadow-[0_1px_2px_rgba(9,30,66,0.18)] border border-transparent hover:border-[#4C9AFF] transition cursor-pointer space-y-2"
                         >
                           <div
-                            className={`text-sm leading-snug ${
+                            className={`text-sm font-medium leading-snug ${
                               colStatus === 'done'
                                 ? 'line-through text-[#6B778C]'
                                 : 'text-[#172B4D]'
@@ -723,9 +762,27 @@ export default function App() {
                             {task.title}
                           </div>
 
+                          {/* 1-line summary on card so it's immediately clear what to do */}
+                          {guide && (
+                            <p className="text-xs text-[#5E6C84] leading-relaxed line-clamp-2">
+                              {guide.summary}
+                            </p>
+                          )}
+
+                          {/* Personal Note Preview */}
+                          {task.note && task.note.trim() && (
+                            <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] bg-[#E3FCEF] text-[#006644] text-[11px] font-medium">
+                              <FileText className="w-3 h-3" />
+                              <span className="truncate max-w-[200px]">메모: {task.note}</span>
+                            </div>
+                          )}
+
                           {/* Rollover Lozenge */}
                           {task.rolloverCount > 0 && (
-                            <div className="flex flex-wrap items-center gap-1.5">
+                            <div
+                              className="flex flex-wrap items-center gap-1.5"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <span
                                 className={`px-1.5 py-0.5 rounded-[3px] text-[10px] font-bold uppercase ${
                                   isDoubleRollover
@@ -747,16 +804,17 @@ export default function App() {
                             </div>
                           )}
 
-                          {/* Card Footer: Key + Slot + Story Hours + Status Switcher */}
-                          <div className="flex items-center justify-between gap-2 pt-1">
-                            <div className="flex items-center gap-1.5">
-                              <CheckSquare className="w-3.5 h-3.5 text-[#4BADE8] shrink-0" />
-                              <span className="text-xs font-semibold text-[#5E6C84]">
-                                {issueKey}
-                              </span>
-                            </div>
+                          {/* Card Footer: Guide Button + Slot + Hours + Status Switcher */}
+                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#F4F5F7]">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0052CC] hover:underline">
+                              <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                              <span>상세 가이드</span>
+                            </span>
 
-                            <div className="flex items-center gap-1.5">
+                            <div
+                              className="flex items-center gap-1.5"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <span className="px-1.5 py-0.5 rounded-[3px] bg-[#F4F5F7] text-[#42526E] text-[11px] font-medium">
                                 {task.slot}
                               </span>
@@ -893,27 +951,36 @@ export default function App() {
 
             {expandedSprints[0] && (
               <div className="bg-white divide-y divide-[#DFE1E6] border-t border-[#DFE1E6]">
-                {state.dDayChecklist.map((item, idx) => {
+                {state.dDayChecklist.map((item) => {
                   const st = getTaskStatus(item);
+                  const guide = getTaskGuide(item.id);
                   return (
                     <div
                       key={item.id}
-                      className="px-3 py-2 flex items-center justify-between gap-2 hover:bg-[#F4F5F7] text-xs"
+                      onClick={() => setSelectedIssue({ type: 'dday', id: item.id })}
+                      className="px-3 py-2.5 flex items-center justify-between gap-2 hover:bg-[#F4F5F7] text-xs cursor-pointer"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <CheckSquare className="w-3.5 h-3.5 text-[#4BADE8] shrink-0" />
-                        <span className="font-semibold text-[#5E6C84] shrink-0">
-                          AI-00{idx + 1}
-                        </span>
-                        <span
-                          className={`truncate ${
-                            st === 'done' ? 'line-through text-[#6B778C]' : 'text-[#172B4D]'
-                          }`}
-                        >
-                          {item.title}
-                        </span>
+                      <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                        <CheckSquare className="w-3.5 h-3.5 text-[#4BADE8] shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <div
+                            className={`font-medium ${
+                              st === 'done' ? 'line-through text-[#6B778C]' : 'text-[#172B4D]'
+                            }`}
+                          >
+                            {item.title}
+                          </div>
+                          {guide && (
+                            <div className="text-[11px] text-[#5E6C84] truncate">
+                              {guide.summary}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div
+                        className="flex items-center gap-2 shrink-0"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <span className="px-2 py-0.5 rounded-full bg-[#DFE1E6] text-[#172B4D] text-[11px] font-bold">
                           {item.duration}
                         </span>
@@ -998,52 +1065,77 @@ export default function App() {
                 {/* Expanded Sprint Issue Rows */}
                 {isExpanded && (
                   <div className="bg-white divide-y divide-[#DFE1E6] border-t border-[#DFE1E6]">
-                    {sp.tasks.map((task, idx) => {
+                    {sp.tasks.map((task) => {
                       const st = getTaskStatus(task);
-                      const issueKey = formatIssueKey(sp.id, idx, task.id);
+                      const guide = getTaskGuide(task.id);
                       const isDoubleRollover = task.rolloverCount >= 2;
 
                       return (
                         <div
                           key={task.id}
-                          className="px-3 py-2 flex items-center justify-between gap-2 hover:bg-[#F4F5F7] text-xs"
+                          onClick={() =>
+                            setSelectedIssue({
+                              type: 'sprint',
+                              sprintId: sp.id,
+                              taskId: task.id,
+                            })
+                          }
+                          className="px-3 py-2.5 flex items-center justify-between gap-2 hover:bg-[#F4F5F7] text-xs cursor-pointer"
                         >
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                            <CheckSquare className="w-3.5 h-3.5 text-[#4BADE8] shrink-0" />
-                            <span className="font-semibold text-[#5E6C84] w-14 shrink-0">
-                              {issueKey}
-                            </span>
-                            <span
-                              className={`truncate ${
-                                st === 'done'
-                                  ? 'line-through text-[#6B778C]'
-                                  : 'text-[#172B4D]'
-                              }`}
-                            >
-                              {task.title}
-                            </span>
-                            {task.rolloverCount > 0 && (
-                              <span
-                                className={`px-1.5 py-0.5 rounded-[3px] text-[10px] font-bold shrink-0 ${
-                                  isDoubleRollover
-                                    ? 'bg-[#FFEBE6] text-[#BF2600]'
-                                    : 'bg-[#FFFAE6] text-[#974F0C]'
-                                }`}
-                              >
-                                {task.rolloverCount}회 이월
-                              </span>
-                            )}
-                            {isDoubleRollover && !task.halved && (
-                              <button
-                                onClick={() => halveTaskScope(sp.id, task.id)}
-                                className="px-1.5 py-0.5 rounded-[3px] bg-[#DE350B] text-white text-[10px] font-semibold shrink-0"
-                              >
-                                범위 1/2 축소
-                              </button>
-                            )}
+                          <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                            <CheckSquare className="w-3.5 h-3.5 text-[#4BADE8] shrink-0 mt-0.5" />
+                            <div className="min-w-0 flex-1 space-y-0.5">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span
+                                  className={`font-medium ${
+                                    st === 'done'
+                                      ? 'line-through text-[#6B778C]'
+                                      : 'text-[#172B4D]'
+                                  }`}
+                                >
+                                  {task.title}
+                                </span>
+                                {task.note && task.note.trim() && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] bg-[#E3FCEF] text-[#006644] text-[10px] font-semibold">
+                                    <FileText className="w-2.5 h-2.5" />
+                                    메모
+                                  </span>
+                                )}
+                                {task.rolloverCount > 0 && (
+                                  <span
+                                    className={`px-1.5 py-0.5 rounded-[3px] text-[10px] font-bold shrink-0 ${
+                                      isDoubleRollover
+                                        ? 'bg-[#FFEBE6] text-[#BF2600]'
+                                        : 'bg-[#FFFAE6] text-[#974F0C]'
+                                    }`}
+                                  >
+                                    {task.rolloverCount}회 이월
+                                  </span>
+                                )}
+                                {isDoubleRollover && !task.halved && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      halveTaskScope(sp.id, task.id);
+                                    }}
+                                    className="px-1.5 py-0.5 rounded-[3px] bg-[#DE350B] text-white text-[10px] font-semibold shrink-0"
+                                  >
+                                    범위 1/2 축소
+                                  </button>
+                                )}
+                              </div>
+                              {guide && (
+                                <div className="text-[11px] text-[#5E6C84] truncate">
+                                  {guide.summary}
+                                </div>
+                              )}
+                            </div>
                           </div>
 
-                          <div className="flex items-center gap-2 shrink-0">
+                          <div
+                            className="flex items-center gap-2 shrink-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <span className="px-1.5 py-0.5 rounded-[3px] bg-[#F4F5F7] text-[#42526E] text-[11px] hidden sm:inline">
                               {task.slot}
                             </span>
@@ -1191,6 +1283,172 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Jira Issue Detail Modal (할 일 상세 가이드 & 내 메모 기록 모달) */}
+      {selectedIssue && (() => {
+        const isSprintIssue = selectedIssue.type === 'sprint';
+        const targetSprint = isSprintIssue
+          ? state.sprints.find((s) => s.id === selectedIssue.sprintId)
+          : undefined;
+        const targetTask = isSprintIssue
+          ? targetSprint?.tasks.find((t) => t.id === selectedIssue.taskId)
+          : undefined;
+        const targetDDay = !isSprintIssue
+          ? state.dDayChecklist.find((d) => d.id === selectedIssue.id)
+          : undefined;
+
+        const item = targetTask || targetDDay;
+        if (!item) return null;
+
+        const currentStatus = getTaskStatus(item);
+        const guide = getTaskGuide(item.id);
+        const contextLabel = isSprintIssue
+          ? `${targetSprint?.title} (${targetSprint?.period}) · ${targetTask?.slot} · ${targetTask?.hours}h`
+          : `D-day 체크리스트 · 10월 24일 (토) · ${targetDDay?.duration}`;
+
+        return (
+          <div
+            onClick={() => setSelectedIssue(null)}
+            className="fixed inset-0 z-50 bg-[#091E42]/50 flex items-center justify-center p-4"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-[3px] max-w-2xl w-full p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto"
+            >
+              {/* Modal Top Bar */}
+              <div className="flex items-center justify-between gap-2 pb-3 border-b border-[#DFE1E6]">
+                <div className="flex items-center gap-2 text-xs text-[#5E6C84] font-medium">
+                  <CheckSquare className="w-4 h-4 text-[#4BADE8] shrink-0" />
+                  <span>{contextLabel}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={currentStatus}
+                    onChange={(e) => {
+                      const next = e.target.value as IssueStatus;
+                      if (isSprintIssue && targetSprint && targetTask) {
+                        setTaskStatus(targetSprint.id, targetTask.id, next);
+                      } else if (targetDDay) {
+                        setDDayStatus(targetDDay.id, next);
+                      }
+                    }}
+                    className={`text-xs font-bold px-2.5 py-1 rounded-[3px] cursor-pointer outline-none ${STATUS_META[currentStatus].lozengeClass}`}
+                  >
+                    <option value="todo">할 일 (TO DO)</option>
+                    <option value="in_progress">진행 중 (IN PROGRESS)</option>
+                    <option value="done">완료 (DONE)</option>
+                  </select>
+                  <button
+                    onClick={() => setSelectedIssue(null)}
+                    className="p-1 rounded-[3px] hover:bg-[#F4F5F7] text-[#5E6C84] hover:text-[#172B4D]"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Issue Title */}
+              <h2 className="text-base sm:text-lg font-bold text-[#172B4D] leading-snug">
+                {item.title}
+              </h2>
+
+              {guide ? (
+                <div className="space-y-4 text-xs sm:text-sm">
+                  {/* 1. 왜 하나요? (의미와 목적) */}
+                  <div className="p-3.5 rounded-[3px] bg-[#DEEBFF]/45 border-l-4 border-[#0052CC] space-y-1">
+                    <div className="text-xs font-bold text-[#0747A6]">
+                      ① 왜 하나요? (의미와 목적)
+                    </div>
+                    <p className="text-[#172B4D] leading-relaxed">{guide.why}</p>
+                  </div>
+
+                  {/* 2. 구체적 실행 가이드 */}
+                  <div className="space-y-2">
+                    <div className="text-xs font-bold text-[#42526E]">
+                      ② 구체적으로 어떻게 하나요? (단계별 실행 가이드)
+                    </div>
+                    <ol className="space-y-2 bg-[#F4F5F7] p-3.5 rounded-[3px]">
+                      {guide.steps.map((step, i) => (
+                        <li key={i} className="flex items-start gap-2.5 text-[#172B4D] leading-relaxed">
+                          <span className="w-5 h-5 rounded-full bg-[#0052CC] text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                            {i + 1}
+                          </span>
+                          <span className="flex-1">{step}</span>
+                        </li>
+                      ))}
+                    </ol>
+
+                    {guide.codeOrCommand && (
+                      <div className="rounded-[3px] bg-[#172B4D] text-[#F4F5F7] p-3 space-y-1.5 font-mono text-xs overflow-x-auto">
+                        <div className="flex items-center justify-between text-[11px] text-[#A5ADBA] font-sans">
+                          <span>참고 명령어 / 예시 코드</span>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(guide.codeOrCommand!);
+                              alert('명령어/코드가 클립보드에 복사되었습니다.');
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] bg-white/10 hover:bg-white/20 text-white"
+                          >
+                            <Copy className="w-3 h-3" />
+                            <span>복사</span>
+                          </button>
+                        </div>
+                        <pre className="whitespace-pre-wrap leading-relaxed">
+                          {guide.codeOrCommand}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 3. 완료 기준 (산출물) */}
+                  <div className="p-3.5 rounded-[3px] bg-[#E3FCEF]/60 border border-[#ABF5D1] space-y-1">
+                    <div className="text-xs font-bold text-[#006644]">
+                      ③ 완료 기준 (이것만 되면 DONE으로 옮기세요)
+                    </div>
+                    <p className="text-[#172B4D] font-medium leading-relaxed">
+                      {guide.deliverable}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 rounded-[3px] bg-[#F4F5F7] text-xs text-[#5E6C84]">
+                  직접 추가한 커스텀 할 일입니다. 아래 메모란에 실행 계획이나 결과를 자유롭게 기록해 보세요.
+                </div>
+              )}
+
+              {/* 4. 내 결과 / 메모 기록란 */}
+              <div className="space-y-1.5 pt-1">
+                <label className="block text-xs font-bold text-[#42526E]">
+                  ④ 내 실행 결과 · 메모 기록란 (입력 시 자동 저장 & PC·모바일 실시간 동기화)
+                </label>
+                <textarea
+                  rows={4}
+                  value={item.note || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (isSprintIssue && targetSprint && targetTask) {
+                      updateTaskNote(targetSprint.id, targetTask.id, val);
+                    } else if (targetDDay) {
+                      updateDDayNote(targetDDay.id, val);
+                    }
+                  }}
+                  placeholder="실험 결과 요약, 10줄 정리, 배운 점, 또는 GitHub 커밋/문서 링크를 이곳에 자유롭게 남겨두세요..."
+                  className="w-full p-3 rounded-[3px] border border-[#DFE1E6] focus:border-[#0052CC] text-xs sm:text-sm text-[#172B4D] outline-none leading-relaxed"
+                />
+              </div>
+
+              <div className="flex justify-end pt-1">
+                <button
+                  onClick={() => setSelectedIssue(null)}
+                  className="px-4 py-1.5 rounded-[3px] bg-[#0052CC] hover:bg-[#0065FF] text-white text-xs font-semibold"
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Jira "Complete Sprint (스프린트 완료)" Modal */}
       {showCompleteModal && (
