@@ -69,13 +69,14 @@ export const TASK_GUIDES: Record<string, TaskGuide> = {
 
   // ======================== SPRINT 1 ========================
   's1-1': {
-    summary: '본격적인 코딩 전 D-day 준비 항목 6개가 모두 끝났는지 최종 점검합니다.',
-    why: '환경 설정이나 API 키 문제로 주말 오전 골든타임(2시간)이 끊기지 않게 하기 위한 첫 단추입니다.',
+    summary: '본격적인 코딩 전 D-day 준비 항목(캘린더 고정 알림·API 키 $20 한도·GitHub 저장소)을 최종 점검합니다.',
+    why: '환경 설정이나 API 키 문제로 주말 오전 골든타임(2시간)이 끊기지 않게 하기 위한 첫 단추입니다(상세 항목은 [백로그] 탭 상단의 D-day 체크리스트에서도 확인 가능).',
     steps: [
-      '캘린더 알림, API 키 발급 및 $20 한도 설정, `ai-lab` GitHub 저장소 클론 상태를 확인합니다.',
-      '미처 못한 항목이 있다면 지금 30분 안에 마무리합니다.',
+      '① [캘린더 알림]: 평소 쓰시는 스마트폰 기본 캘린더(구글 캘린더·삼성 캘린더·애플 캘린더)에 주 6시간 공부 블록(화·목 21:00~22:00 / 토·일 오전 08:00~10:00)을 매주 반복 일정으로 등록하고 10분 전 푸시 알림을 켭니다.',
+      '② [API 키 발급 & $20 한도]: OpenAI(platform.openai.com) 또는 Anthropic(console.anthropic.com) 콘솔의 Billing에서 월 결제 한도(Usage Limit)를 $20로 걸어 요금 폭탄을 방지하고, API Keys 메뉴에서 실습용 Secret Key를 발급받습니다.',
+      '③ [ai-lab 저장소 클론]: 내 GitHub에 6개월 실습 코드를 모을 공개 저장소(`ai-lab`)를 하나 만들고, 내 맥북 작업 폴더에 `git clone` 해둡니다.',
     ],
-    deliverable: 'API 키가 준비되어 있고 로컬 터미널에서 `ai-lab` 폴더가 열려 있는 상태',
+    deliverable: '스마트폰 캘린더 반복 알림 등록 + OpenAI/Anthropic API 키($20 한도) 발급 + 로컬에 `ai-lab` 폴더 클론 완료',
   },
   's1-2': {
     summary: '익숙한 Next.js(App Router) + TypeScript로 첫 챗봇 프로젝트를 생성합니다.',
