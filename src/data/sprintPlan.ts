@@ -1,8 +1,11 @@
+export type IssueStatus = 'todo' | 'in_progress' | 'done';
+
 export interface DDayItem {
   id: string;
   title: string;
   duration: string;
   done: boolean;
+  status?: IssueStatus;
 }
 
 export interface SprintTask {
@@ -11,10 +14,24 @@ export interface SprintTask {
   hours: number;
   slot: string;
   done: boolean;
+  status?: IssueStatus;
   isParallel?: boolean;
   rolloverCount: number; // 이월 횟수 (2회 연속 이월 시 범위 절반 축소 알림)
   halved?: boolean; // 범위 절반 축소 적용 여부
   originalTitle?: string;
+}
+
+export function getTaskStatus(task: { done: boolean; status?: IssueStatus }): IssueStatus {
+  if (task.status) return task.status;
+  return task.done ? 'done' : 'todo';
+}
+
+export function formatIssueKey(sprintId: number, index: number, taskId: string): string {
+  const m = taskId.match(/^s(\d+)-(\d+)/);
+  if (m) {
+    return `AI-${m[1]}${String(m[2]).padStart(2, '0')}`;
+  }
+  return `AI-${sprintId}${String(index + 1).padStart(2, '0')}`;
 }
 
 export interface SprintRetro {

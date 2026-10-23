@@ -1,19 +1,22 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Check,
+  CheckSquare,
+  ChevronDown,
+  ChevronRight,
   Copy,
   Download,
-  Pause,
-  Play,
   Plus,
   RefreshCw,
-  RotateCcw,
+  Scissors,
   Settings,
   Trash2,
   Upload,
 } from 'lucide-react';
 import {
   AppState,
+  formatIssueKey,
+  getTaskStatus,
+  IssueStatus,
   SPRINT_SLOTS,
   SprintData,
   SprintTask,
@@ -30,54 +33,84 @@ import {
   SyncConfig,
 } from './lib/supabaseSync';
 
-type ViewTab = 'sprint' | 'overview';
+type JiraMenu = 'board' | 'backlog';
 
-function detectActiveSprintId(sprints: SprintData[]): number {
+const STATUS_META: Record<
+  IssueStatus,
+  { label: string; lozengeClass: string; columnTitle: string }
+> = {
+  todo: {
+    label: '할 일',
+    lozengeClass: 'bg-[#DFE1E6] text-[#42526E]',
+    columnTitle: 'TO DO · 할 일',
+  },
+  in_progress: {
+    label: '진행 중',
+    lozengeClass: 'bg-[#DEEBFF] text-[#0747A6]',
+    columnTitle: 'IN PROGRESS · 진행 중',
+  },
+  done: {
+    label: '완료',
+    lozengeClass: 'bg-[#E3FCEF] text-[#006644]',
+    columnTitle: 'DONE · 완료',
+  },
+};
+
+function detectDefaultSprintId(sprints: SprintData[]): number {
   const today = new Date().toISOString().slice(0, 10);
   for (const sp of sprints) {
     if (today >= sp.startDate && today <= sp.endDate) {
       return sp.id;
     }
   }
-  if (today < sprints[0].startDate) return 0; // 0 = D-day before Oct 24
-  return 13;
-}
-
-function formatSeconds(sec: number): string {
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  return [h, m, s].map((v) => String(v).padStart(2, '0')).join(':');
+  const firstUnfinished = sprints.find((s) => s.retro.goalAchieved === null);
+  return firstUnfinished ? firstUnfinished.id : 1;
 }
 
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadLocalState());
-  const [activeTab, setActiveTab] = useState<ViewTab>('sprint');
-  // 0 = D-day checklist, 1..13 = Sprint 1..13
-  const [selectedSprintId, setSelectedSprintId] = useState<number>(() => {
-    const detected = detectActiveSprintId(loadLocalState().sprints);
-    return detected === 0 ? 1 : detected;
+  const [activeMenu, setActiveMenu] = useState<JiraMenu>('board');
+  const [activeSprintId, setActiveSprintId] = useState<number>(() =>
+    detectDefaultSprintId(loadLocalState().sprints)
+  );
+  const [mobileColumnFilter, setMobileColumnFilter] = useState<'all' | IssueStatus>('all');
+
+  // Backlog expanded sprint IDs (default: D-day(0) + current sprint + next sprint)
+  const [expandedSprints, setExpandedSprints] = useState<Record<number, boolean>>(() => {
+    const def = detectDefaultSprintId(loadLocalState().sprints);
+    return { 0: true, [def]: true, [Math.min(13, def + 1)]: true };
   });
+
+  // Drag and drop state
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+
+  // Create issue inline state
+  const [creatingInSprintId, setCreatingInSprintId] = useState<number | null>(null);
+  const [newTaskTitle, setNewTaskTitle] = useState<string>('');
+  const [newTaskHours, setNewTaskHours] = useState<string>('1');
+  const [newTaskSlot, setNewTaskSlot] = useState<string>('1주 토');
+
+  // Complete Sprint Modal state
+  const [showCompleteModal, setShowCompleteModal] = useState<boolean>(false);
+  const [modalActualHours, setModalActualHours] = useState<string>('0');
+  const [modalFunScore, setModalFunScore] = useState<number | null>(null);
+  const [modalGoalAchieved, setModalGoalAchieved] = useState<boolean>(true);
+  const [modalKeep, setModalKeep] = useState<string>('');
+  const [modalProblem, setModalProblem] = useState<string>('');
+  const [modalTry, setModalTry] = useState<string>('');
+  const [modalGithubUrl, setModalGithubUrl] = useState<string>('');
+  const [modalRolloverUnfinished, setModalRolloverUnfinished] = useState<boolean>(true);
 
   // Sync state
   const [syncConfig, setSyncConfig] = useState<SyncConfig>(() => getSyncConfig());
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
 
-  // Stopwatch state
-  const [timerRunning, setTimerRunning] = useState<boolean>(false);
-  const [timerSeconds, setTimerSeconds] = useState<number>(0);
-
-  // New task input
-  const [newTaskTitle, setNewTaskTitle] = useState<string>('');
-  const [newTaskHours, setNewTaskHours] = useState<string>('1');
-  const [newTaskSlot, setNewTaskSlot] = useState<string>('1주 토');
-
   const isCloudConfigured = Boolean(
     syncConfig.supabaseUrl.trim() && syncConfig.supabaseAnonKey.trim()
   );
 
-  // Supabase Realtime & focus sync
+  // Supabase Realtime & Focus Sync
   useEffect(() => {
     if (!isCloudConfigured) return;
     let cancelled = false;
@@ -135,15 +168,6 @@ export default function App() {
     };
   }, [isCloudConfigured, syncConfig.supabaseUrl, syncConfig.supabaseAnonKey, syncConfig.syncKey]);
 
-  // Timer tick
-  useEffect(() => {
-    if (!timerRunning) return;
-    const interval = setInterval(() => {
-      setTimerSeconds((prev) => prev + 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [timerRunning]);
-
   const syncTimeoutRef = useRef<number | null>(null);
 
   const updateAppState = (updater: (prev: AppState) => AppState) => {
@@ -167,9 +191,9 @@ export default function App() {
     });
   };
 
-  const selectedSprint = useMemo(
-    () => state.sprints.find((s) => s.id === selectedSprintId) || state.sprints[0],
-    [state.sprints, selectedSprintId]
+  const activeSprint = useMemo(
+    () => state.sprints.find((s) => s.id === activeSprintId) || state.sprints[0],
+    [state.sprints, activeSprintId]
   );
 
   const getEffectiveTargetHours = (sp: SprintData): number => {
@@ -185,108 +209,57 @@ export default function App() {
     return Math.max(2, h);
   };
 
-  const s1ToS6Stats = useMemo(() => {
-    const firstSix = state.sprints.slice(0, 6);
-    const scored = firstSix.filter((s) => s.retro.funScore !== null);
-    const avgFun =
-      scored.length > 0
-        ? Math.round(
-            (scored.reduce((acc, s) => acc + (s.retro.funScore || 0), 0) / scored.length) * 10
-          ) / 10
-        : null;
-    const totalHours6 = firstSix.reduce((acc, s) => acc + (s.retro.actualHours || 0), 0);
-    const avgWeeklyHours = Math.round((totalHours6 / 12) * 10) / 10;
-    return { avgFun, avgWeeklyHours };
-  }, [state.sprints]);
+  const getSprintHourBreakdown = (sp: SprintData) => {
+    let todoH = 0;
+    let inProgressH = 0;
+    let doneH = 0;
+    sp.tasks.forEach((t) => {
+      const st = getTaskStatus(t);
+      if (st === 'done') doneH += t.hours;
+      else if (st === 'in_progress') inProgressH += t.hours;
+      else todoH += t.hours;
+    });
+    return {
+      todoH: Math.round(todoH * 10) / 10,
+      inProgressH: Math.round(inProgressH * 10) / 10,
+      doneH: Math.round(doneH * 10) / 10,
+    };
+  };
 
-  const toggleDDayItem = (id: string) => {
+  // Update task status & auto-calculate actualHours from DONE tasks
+  const setTaskStatus = (sprintId: number, taskId: string, nextStatus: IssueStatus) => {
+    updateAppState((prev) => ({
+      ...prev,
+      sprints: prev.sprints.map((sp) => {
+        if (sp.id !== sprintId) return sp;
+        const updatedTasks = sp.tasks.map((t) =>
+          t.id === taskId ? { ...t, status: nextStatus, done: nextStatus === 'done' } : t
+        );
+        const autoDoneHours =
+          Math.round(
+            updatedTasks
+              .filter((t) => getTaskStatus(t) === 'done')
+              .reduce((sum, t) => sum + t.hours, 0) * 10
+          ) / 10;
+        return {
+          ...sp,
+          tasks: updatedTasks,
+          retro: {
+            ...sp.retro,
+            actualHours: autoDoneHours,
+          },
+        };
+      }),
+    }));
+  };
+
+  const setDDayStatus = (id: string, nextStatus: IssueStatus) => {
     updateAppState((prev) => ({
       ...prev,
       dDayChecklist: prev.dDayChecklist.map((item) =>
-        item.id === id ? { ...item, done: !item.done } : item
+        item.id === id ? { ...item, status: nextStatus, done: nextStatus === 'done' } : item
       ),
     }));
-  };
-
-  const toggleSprintTask = (sprintId: number, taskId: string) => {
-    updateAppState((prev) => ({
-      ...prev,
-      sprints: prev.sprints.map((sp) =>
-        sp.id !== sprintId
-          ? sp
-          : {
-              ...sp,
-              tasks: sp.tasks.map((t) => (t.id === taskId ? { ...t, done: !t.done } : t)),
-            }
-      ),
-    }));
-  };
-
-  const rolloverTaskToNextSprint = (fromSprintId: number, taskId: string) => {
-    if (fromSprintId >= 13) return;
-    updateAppState((prev) => {
-      const sourceSprint = prev.sprints.find((s) => s.id === fromSprintId);
-      const taskToMove = sourceSprint?.tasks.find((t) => t.id === taskId);
-      if (!taskToMove) return prev;
-
-      const nextCount = (taskToMove.rolloverCount || 0) + 1;
-      const movedTask: SprintTask = {
-        ...taskToMove,
-        id: `${taskToMove.id}-r${nextCount}`,
-        rolloverCount: nextCount,
-        slot: '이월',
-      };
-
-      return {
-        ...prev,
-        sprints: prev.sprints.map((sp) => {
-          if (sp.id === fromSprintId) {
-            return { ...sp, tasks: sp.tasks.filter((t) => t.id !== taskId) };
-          }
-          if (sp.id === fromSprintId + 1) {
-            return { ...sp, tasks: [movedTask, ...sp.tasks] };
-          }
-          return sp;
-        }),
-      };
-    });
-  };
-
-  const rolloverAllUnfinishedTasks = (fromSprintId: number) => {
-    if (fromSprintId >= 13) return;
-    updateAppState((prev) => {
-      const sourceSprint = prev.sprints.find((s) => s.id === fromSprintId);
-      if (!sourceSprint) return prev;
-
-      const unfinished = sourceSprint.tasks.filter(
-        (t) => !t.done && !t.title.includes('버퍼') && !t.title.includes('회고')
-      );
-      if (unfinished.length === 0) return prev;
-
-      const unfinishedIds = new Set(unfinished.map((t) => t.id));
-      const movedTasks: SprintTask[] = unfinished.map((t) => {
-        const nextCount = (t.rolloverCount || 0) + 1;
-        return {
-          ...t,
-          id: `${t.id}-r${nextCount}`,
-          rolloverCount: nextCount,
-          slot: '이월',
-        };
-      });
-
-      return {
-        ...prev,
-        sprints: prev.sprints.map((sp) => {
-          if (sp.id === fromSprintId) {
-            return { ...sp, tasks: sp.tasks.filter((t) => !unfinishedIds.has(t.id)) };
-          }
-          if (sp.id === fromSprintId + 1) {
-            return { ...sp, tasks: [...movedTasks, ...sp.tasks] };
-          }
-          return sp;
-        }),
-      };
-    });
   };
 
   const halveTaskScope = (sprintId: number, taskId: string) => {
@@ -312,7 +285,7 @@ export default function App() {
     }));
   };
 
-  const addCustomTask = (sprintId: number) => {
+  const addIssueToSprint = (sprintId: number) => {
     const trimmed = newTaskTitle.trim();
     if (!trimmed) return;
     const hoursNum = Math.max(0.5, parseFloat(newTaskHours) || 1);
@@ -331,6 +304,7 @@ export default function App() {
                   hours: hoursNum,
                   slot: newTaskSlot,
                   done: false,
+                  status: 'todo',
                   rolloverCount: 0,
                 },
               ],
@@ -338,9 +312,10 @@ export default function App() {
       ),
     }));
     setNewTaskTitle('');
+    setCreatingInSprintId(null);
   };
 
-  const deleteTask = (sprintId: number, taskId: string) => {
+  const deleteIssue = (sprintId: number, taskId: string) => {
     updateAppState((prev) => ({
       ...prev,
       sprints: prev.sprints.map((sp) =>
@@ -349,34 +324,112 @@ export default function App() {
     }));
   };
 
-  const applyTimerToSprint = () => {
-    if (timerSeconds < 60) return;
-    const targetId = selectedSprintId === 0 ? 1 : selectedSprintId;
-    const addedHours = Math.round((timerSeconds / 3600) * 10) / 10;
-    updateAppState((prev) => ({
-      ...prev,
-      sprints: prev.sprints.map((sp) =>
-        sp.id !== targetId
-          ? sp
-          : {
-              ...sp,
-              retro: {
-                ...sp.retro,
-                actualHours: Math.round(((sp.retro.actualHours || 0) + addedHours) * 10) / 10,
-              },
-            }
-      ),
-    }));
-    setTimerRunning(false);
-    setTimerSeconds(0);
+  // Open Jira "Complete Sprint" Modal
+  const openCompleteSprintModal = () => {
+    const { doneH } = getSprintHourBreakdown(activeSprint);
+    const initialHours =
+      activeSprint.retro.actualHours > 0 ? activeSprint.retro.actualHours : doneH;
+    setModalActualHours(String(initialHours));
+    setModalFunScore(activeSprint.retro.funScore ?? 4);
+    setModalGoalAchieved(activeSprint.retro.goalAchieved ?? true);
+    setModalKeep(activeSprint.retro.keep);
+    setModalProblem(activeSprint.retro.problem);
+    setModalTry(activeSprint.retro.tryText);
+    setModalGithubUrl(activeSprint.retro.githubUrl);
+    setModalRolloverUnfinished(true);
+    setShowCompleteModal(true);
   };
+
+  // Confirm Jira "Complete Sprint"
+  const handleCompleteSprint = () => {
+    const currentId = activeSprint.id;
+    const finalHours = parseFloat(modalActualHours) || 0;
+
+    updateAppState((prev) => {
+      const sourceSprint = prev.sprints.find((s) => s.id === currentId);
+      if (!sourceSprint) return prev;
+
+      const unfinished = sourceSprint.tasks.filter(
+        (t) =>
+          getTaskStatus(t) !== 'done' &&
+          !t.title.includes('버퍼') &&
+          !t.title.includes('회고')
+      );
+      const unfinishedIds = new Set(unfinished.map((t) => t.id));
+
+      const movedTasks: SprintTask[] =
+        modalRolloverUnfinished && currentId < 13
+          ? unfinished.map((t) => {
+              const nextCount = (t.rolloverCount || 0) + 1;
+              return {
+                ...t,
+                id: `${t.id}-r${nextCount}`,
+                status: 'todo',
+                done: false,
+                rolloverCount: nextCount,
+                slot: '1주 토 (이월)',
+              };
+            })
+          : [];
+
+      return {
+        ...prev,
+        sprints: prev.sprints.map((sp) => {
+          if (sp.id === currentId) {
+            return {
+              ...sp,
+              tasks:
+                modalRolloverUnfinished && currentId < 13
+                  ? sp.tasks.filter((t) => !unfinishedIds.has(t.id))
+                  : sp.tasks,
+              retro: {
+                keep: modalKeep,
+                problem: modalProblem,
+                tryText: modalTry,
+                funScore: modalFunScore,
+                actualHours: finalHours,
+                goalAchieved: modalGoalAchieved,
+                githubUrl: modalGithubUrl,
+              },
+            };
+          }
+          if (sp.id === currentId + 1 && movedTasks.length > 0) {
+            return {
+              ...sp,
+              tasks: [...movedTasks, ...sp.tasks],
+            };
+          }
+          return sp;
+        }),
+      };
+    });
+
+    setShowCompleteModal(false);
+    if (currentId < 13) {
+      setActiveSprintId(currentId + 1);
+    }
+  };
+
+  const s1ToS6Stats = useMemo(() => {
+    const firstSix = state.sprints.slice(0, 6);
+    const scored = firstSix.filter((s) => s.retro.funScore !== null);
+    const avgFun =
+      scored.length > 0
+        ? Math.round(
+            (scored.reduce((acc, s) => acc + (s.retro.funScore || 0), 0) / scored.length) * 10
+          ) / 10
+        : null;
+    const totalHours6 = firstSix.reduce((acc, s) => acc + (s.retro.actualHours || 0), 0);
+    const avgWeeklyHours = Math.round((totalHours6 / 12) * 10) / 10;
+    return { avgFun, avgWeeklyHours };
+  }, [state.sprints]);
 
   const exportBackupJson = () => {
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `sprint-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `jira-sprint-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -398,298 +451,620 @@ export default function App() {
     reader.readAsText(file);
   };
 
+  const activeHours = getSprintHourBreakdown(activeSprint);
+  const activeTargetH = getEffectiveTargetHours(activeSprint);
+
   return (
-    <div className="min-h-screen bg-white text-neutral-900">
-      {/* Minimalist Top Bar */}
-      <header className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-neutral-200">
-        <div className="max-w-2xl mx-auto px-4 h-12 flex items-center justify-between gap-2">
-          {/* 2 Simple Tabs */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setActiveTab('sprint')}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
-                activeTab === 'sprint'
-                  ? 'bg-neutral-900 text-white'
-                  : 'text-neutral-500 hover:text-neutral-900'
-              }`}
-            >
-              현재 스프린트
-            </button>
-            <button
-              onClick={() => setActiveTab('overview')}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
-                activeTab === 'overview'
-                  ? 'bg-neutral-900 text-white'
-                  : 'text-neutral-500 hover:text-neutral-900'
-              }`}
-            >
-              전체 진척표
-            </button>
-          </div>
-
-          {/* Right: Minimal Timer + Sync Button */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 border border-neutral-200 rounded-md px-2 py-1 text-xs">
-              <span className="font-mono text-neutral-700">{formatSeconds(timerSeconds)}</span>
-              <button
-                onClick={() => setTimerRunning((r) => !r)}
-                className="text-neutral-700 hover:text-black p-0.5"
-                title={timerRunning ? '일시정지' : '타이머 시작'}
-              >
-                {timerRunning ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-              </button>
-              {timerSeconds >= 60 && (
-                <button
-                  onClick={applyTimerToSprint}
-                  className="text-[11px] font-semibold underline text-neutral-900 ml-0.5"
-                >
-                  반영
-                </button>
-              )}
-              {timerSeconds > 0 && (
-                <button
-                  onClick={() => {
-                    setTimerRunning(false);
-                    setTimerSeconds(0);
-                  }}
-                  className="text-neutral-400 hover:text-neutral-700 p-0.5"
-                  title="초기화"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                </button>
-              )}
+    <div className="min-h-screen flex flex-col bg-white text-[#172B4D]">
+      {/* Jira Top Global Bar */}
+      <header className="sticky top-0 z-30 h-14 bg-white border-b border-[#DFE1E6] px-4 flex items-center justify-between">
+        <div className="flex items-center gap-6">
+          {/* Project Brand */}
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-[3px] bg-[#0052CC] flex items-center justify-center text-white font-bold text-xs">
+              AI
             </div>
-
-            <button
-              onClick={() => setShowSettingsModal(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-neutral-200 text-xs text-neutral-600 hover:text-neutral-900 hover:border-neutral-400 transition"
-              title="동기화 설정"
-            >
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  !isCloudConfigured
-                    ? 'bg-neutral-300'
-                    : syncStatus === 'error'
-                    ? 'bg-red-500'
-                    : syncStatus === 'syncing'
-                    ? 'bg-amber-400'
-                    : 'bg-neutral-900'
-                }`}
-              />
-              <Settings className="w-3.5 h-3.5" />
-            </button>
+            <div className="leading-tight">
+              <div className="text-sm font-semibold text-[#172B4D]">AI 전환 스프린트</div>
+              <div className="text-[11px] text-[#5E6C84] hidden sm:block">Scrum Software Project</div>
+            </div>
           </div>
+
+          {/* 2 Jira Scrum Menus: 활성 스프린트 / 백로그 */}
+          <nav className="flex items-center gap-1">
+            <button
+              onClick={() => setActiveMenu('board')}
+              className={`px-3 py-1.5 rounded-[3px] text-sm font-medium transition relative ${
+                activeMenu === 'board'
+                  ? 'text-[#0052CC] bg-[#DEEBFF]/60'
+                  : 'text-[#42526E] hover:bg-[#F4F5F7]'
+              }`}
+            >
+              활성 스프린트
+              {activeMenu === 'board' && (
+                <span className="absolute bottom-0 inset-x-0 h-[2px] bg-[#0052CC]" />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveMenu('backlog')}
+              className={`px-3 py-1.5 rounded-[3px] text-sm font-medium transition relative ${
+                activeMenu === 'backlog'
+                  ? 'text-[#0052CC] bg-[#DEEBFF]/60'
+                  : 'text-[#42526E] hover:bg-[#F4F5F7]'
+              }`}
+            >
+              백로그
+              {activeMenu === 'backlog' && (
+                <span className="absolute bottom-0 inset-x-0 h-[2px] bg-[#0052CC]" />
+              )}
+            </button>
+          </nav>
         </div>
+
+        {/* Right: Sync Status & Settings */}
+        <button
+          onClick={() => setShowSettingsModal(true)}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[3px] bg-[#F4F5F7] hover:bg-[#EBECF0] text-xs font-medium text-[#42526E] transition"
+        >
+          <span
+            className={`w-2 h-2 rounded-full ${
+              !isCloudConfigured
+                ? 'bg-[#A5ADBA]'
+                : syncStatus === 'error'
+                ? 'bg-[#DE350B]'
+                : syncStatus === 'syncing'
+                ? 'bg-[#FFAB00]'
+                : 'bg-[#36B37E]'
+            }`}
+          />
+          <span className="hidden sm:inline">
+            {isCloudConfigured ? 'Supabase 연동' : '동기화 설정'}
+          </span>
+          <Settings className="w-3.5 h-3.5" />
+        </button>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-6 pb-20">
-        {/* TAB 1: CURRENT SPRINT */}
-        {activeTab === 'sprint' && (
-          <div className="space-y-8">
-            {/* Compact Sprint Number Strip (D-day, S1..S13) */}
-            <div className="flex items-center gap-1 overflow-x-auto pb-1 no-scrollbar border-b border-neutral-100">
-              <button
-                onClick={() => setSelectedSprintId(0)}
-                className={`px-2.5 py-1 rounded text-xs font-medium shrink-0 transition ${
-                  selectedSprintId === 0
-                    ? 'bg-neutral-900 text-white'
-                    : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100'
-                }`}
-              >
-                D-day
-              </button>
-              {state.sprints.map((sp) => {
-                const isSelected = selectedSprintId === sp.id;
-                const allDone = sp.tasks.length > 0 && sp.tasks.every((t) => t.done);
-                return (
-                  <button
-                    key={sp.id}
-                    onClick={() => setSelectedSprintId(sp.id)}
-                    className={`px-2.5 py-1 rounded text-xs font-medium shrink-0 transition flex items-center gap-1 ${
-                      isSelected
-                        ? 'bg-neutral-900 text-white'
-                        : allDone
-                        ? 'text-neutral-400 line-through hover:text-neutral-800'
-                        : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100'
-                    }`}
-                  >
-                    <span>S{sp.id}</span>
-                  </button>
-                );
-              })}
+      {/* MENU 1: ACTIVE SPRINT (칸반: 할 일 / 진행 중 / 완료) */}
+      {activeMenu === 'board' && (
+        <div className="flex-1 flex flex-col max-w-7xl w-full mx-auto px-4 py-5 space-y-4">
+          {/* Jira Board Header */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-[#DFE1E6]">
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-[#5E6C84]">
+                <span>Projects / AI 전환 6개월 /</span>
+                <select
+                  value={activeSprint.id}
+                  onChange={(e) => setActiveSprintId(Number(e.target.value))}
+                  className="bg-[#F4F5F7] hover:bg-[#EBECF0] text-[#172B4D] font-semibold px-2 py-0.5 rounded-[3px] border border-[#DFE1E6] outline-none cursor-pointer"
+                >
+                  {state.sprints.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.title} ({s.period})
+                    </option>
+                  ))}
+                </select>
+                <span>· {activeSprint.phaseName}</span>
+                {activeSprint.retro.goalAchieved === true && (
+                  <span className="px-1.5 py-0.5 rounded-[3px] bg-[#E3FCEF] text-[#006644] font-bold text-[11px]">
+                    완료된 스프린트
+                  </span>
+                )}
+              </div>
+
+              <h1 className="text-lg sm:text-xl font-semibold text-[#172B4D]">
+                {activeSprint.goal}
+              </h1>
+              <p className="text-xs text-[#5E6C84]">완료 기준 (DoD): {activeSprint.dod}</p>
             </div>
 
-            {/* D-DAY VIEW */}
-            {selectedSprintId === 0 ? (
-              <div className="space-y-6">
-                <div className="space-y-1">
-                  <div className="text-xs text-neutral-400 font-medium">2026.10.24 (토)</div>
-                  <h1 className="text-xl font-semibold tracking-tight">D-day 체크리스트</h1>
-                </div>
-
-                <div className="divide-y divide-neutral-100 border-t border-b border-neutral-200">
-                  {state.dDayChecklist.map((item) => (
-                    <label
-                      key={item.id}
-                      className="py-3.5 flex items-start gap-3 cursor-pointer select-none group"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={item.done}
-                        onChange={() => toggleDDayItem(item.id)}
-                        className="mt-0.5 w-4 h-4 rounded border-neutral-300 accent-neutral-900"
-                      />
-                      <span
-                        className={`flex-1 text-sm leading-snug ${
-                          item.done ? 'line-through text-neutral-400' : 'text-neutral-900'
-                        }`}
-                      >
-                        {item.title}
-                      </span>
-                      <span className="text-xs text-neutral-400 shrink-0">{item.duration}</span>
-                    </label>
-                  ))}
-                </div>
+            {/* Right: Hour Counters + Min Maintenance + Complete Sprint Button */}
+            <div className="flex flex-wrap items-center gap-2 self-start lg:self-center">
+              {/* Jira Estimation Badges */}
+              <div className="flex items-center gap-1.5 text-xs font-semibold mr-1">
+                <span
+                  className="px-2 py-0.5 rounded-full bg-[#DFE1E6] text-[#42526E]"
+                  title="할 일 시간"
+                >
+                  할 일 {activeHours.todoH}h
+                </span>
+                <span
+                  className="px-2 py-0.5 rounded-full bg-[#DEEBFF] text-[#0747A6]"
+                  title="진행 중 시간"
+                >
+                  진행 중 {activeHours.inProgressH}h
+                </span>
+                <span
+                  className="px-2 py-0.5 rounded-full bg-[#E3FCEF] text-[#006644]"
+                  title="완료 시간 (자동 합산)"
+                >
+                  완료 {activeHours.doneH}h / {activeTargetH}h
+                </span>
               </div>
-            ) : (
-              /* SPRINT 1..13 VIEW */
-              <div className="space-y-8">
-                {/* Sprint Header */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs text-neutral-500">
-                    <span>
-                      {selectedSprint.title} · {selectedSprint.period} · {selectedSprint.phaseName}
+
+              <button
+                onClick={() =>
+                  updateAppState((prev) => ({
+                    ...prev,
+                    sprints: prev.sprints.map((s) =>
+                      s.id === activeSprint.id
+                        ? { ...s, minMaintenanceWeek1: !s.minMaintenanceWeek1 }
+                        : s
+                    ),
+                  }))
+                }
+                className={`px-2.5 py-1.5 rounded-[3px] text-xs font-medium transition ${
+                  activeSprint.minMaintenanceWeek1
+                    ? 'bg-[#FFEBE6] text-[#BF2600] border border-[#FFBDAD]'
+                    : 'bg-[#F4F5F7] text-[#42526E] hover:bg-[#EBECF0]'
+                }`}
+              >
+                1주 최소유지
+              </button>
+              <button
+                onClick={() =>
+                  updateAppState((prev) => ({
+                    ...prev,
+                    sprints: prev.sprints.map((s) =>
+                      s.id === activeSprint.id
+                        ? { ...s, minMaintenanceWeek2: !s.minMaintenanceWeek2 }
+                        : s
+                    ),
+                  }))
+                }
+                className={`px-2.5 py-1.5 rounded-[3px] text-xs font-medium transition ${
+                  activeSprint.minMaintenanceWeek2
+                    ? 'bg-[#FFEBE6] text-[#BF2600] border border-[#FFBDAD]'
+                    : 'bg-[#F4F5F7] text-[#42526E] hover:bg-[#EBECF0]'
+                }`}
+              >
+                2주 최소유지
+              </button>
+
+              <button
+                onClick={openCompleteSprintModal}
+                className="px-3 py-1.5 rounded-[3px] bg-[#0052CC] hover:bg-[#0065FF] text-white text-xs font-semibold transition shadow-sm"
+              >
+                스프린트 완료
+              </button>
+            </div>
+          </div>
+
+          {/* Mobile Status Filter Pills */}
+          <div className="flex md:hidden items-center gap-1 bg-[#F4F5F7] p-1 rounded-[3px]">
+            {(
+              [
+                { key: 'all', label: `전체 (${activeSprint.tasks.length})` },
+                {
+                  key: 'todo',
+                  label: `할 일 (${
+                    activeSprint.tasks.filter((t) => getTaskStatus(t) === 'todo').length
+                  })`,
+                },
+                {
+                  key: 'in_progress',
+                  label: `진행 중 (${
+                    activeSprint.tasks.filter((t) => getTaskStatus(t) === 'in_progress').length
+                  })`,
+                },
+                {
+                  key: 'done',
+                  label: `완료 (${
+                    activeSprint.tasks.filter((t) => getTaskStatus(t) === 'done').length
+                  })`,
+                },
+              ] as const
+            ).map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setMobileColumnFilter(tab.key)}
+                className={`flex-1 py-1.5 rounded-[3px] text-xs font-medium ${
+                  mobileColumnFilter === tab.key
+                    ? 'bg-white text-[#0052CC] shadow-sm'
+                    : 'text-[#5E6C84]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* 3 Jira Kanban Columns */}
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
+            {(['todo', 'in_progress', 'done'] as const).map((colStatus) => {
+              if (mobileColumnFilter !== 'all' && mobileColumnFilter !== colStatus) {
+                return null;
+              }
+              const colTasks = activeSprint.tasks.filter((t) => getTaskStatus(t) === colStatus);
+              const colHours =
+                Math.round(colTasks.reduce((acc, t) => acc + t.hours, 0) * 10) / 10;
+
+              return (
+                <div
+                  key={colStatus}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => {
+                    if (draggedTaskId) {
+                      setTaskStatus(activeSprint.id, draggedTaskId, colStatus);
+                      setDraggedTaskId(null);
+                    }
+                  }}
+                  className="bg-[#F4F5F7] rounded-[3px] p-2.5 min-h-[420px] flex flex-col"
+                >
+                  {/* Column Header */}
+                  <div className="px-1.5 py-1.5 mb-2 flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#5E6C84] uppercase tracking-wider">
+                      {STATUS_META[colStatus].columnTitle}{' '}
+                      <span className="font-normal ml-1">{colTasks.length}</span>
                     </span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() =>
-                          updateAppState((prev) => ({
-                            ...prev,
-                            sprints: prev.sprints.map((s) =>
-                              s.id === selectedSprint.id
-                                ? { ...s, minMaintenanceWeek1: !s.minMaintenanceWeek1 }
-                                : s
-                            ),
-                          }))
-                        }
-                        className={`px-2 py-0.5 rounded border text-[11px] transition ${
-                          selectedSprint.minMaintenanceWeek1
-                            ? 'border-neutral-900 bg-neutral-900 text-white'
-                            : 'border-neutral-200 text-neutral-500 hover:border-neutral-400'
-                        }`}
-                      >
-                        1주 최소유지
-                      </button>
-                      <button
-                        onClick={() =>
-                          updateAppState((prev) => ({
-                            ...prev,
-                            sprints: prev.sprints.map((s) =>
-                              s.id === selectedSprint.id
-                                ? { ...s, minMaintenanceWeek2: !s.minMaintenanceWeek2 }
-                                : s
-                            ),
-                          }))
-                        }
-                        className={`px-2 py-0.5 rounded border text-[11px] transition ${
-                          selectedSprint.minMaintenanceWeek2
-                            ? 'border-neutral-900 bg-neutral-900 text-white'
-                            : 'border-neutral-200 text-neutral-500 hover:border-neutral-400'
-                        }`}
-                      >
-                        2주 최소유지
-                      </button>
-                    </div>
+                    <span className="text-xs font-semibold text-[#5E6C84]">{colHours}h</span>
                   </div>
 
-                  <h1 className="text-xl font-semibold tracking-tight text-neutral-900">
-                    {selectedSprint.goal}
-                  </h1>
-
-                  <p className="text-xs text-neutral-500 leading-relaxed">
-                    완료 기준: {selectedSprint.dod}
-                  </p>
-                </div>
-
-                {/* Task Checklist */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-xs text-neutral-500">
-                    <span>
-                      할 일 ({selectedSprint.tasks.filter((t) => t.done).length}/
-                      {selectedSprint.tasks.length}) · 목표 {getEffectiveTargetHours(selectedSprint)}h
-                    </span>
-                    {selectedSprint.id < 13 && (
-                      <button
-                        onClick={() => rolloverAllUnfinishedTasks(selectedSprint.id)}
-                        className="text-neutral-500 hover:text-neutral-900 underline"
-                      >
-                        미완료 일괄 이월 →
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="divide-y divide-neutral-100 border-t border-b border-neutral-200">
-                    {selectedSprint.tasks.map((task) => {
+                  {/* Issue Cards */}
+                  <div className="space-y-2 flex-1">
+                    {colTasks.map((task) => {
+                      const taskIndex = activeSprint.tasks.findIndex((x) => x.id === task.id);
+                      const issueKey = formatIssueKey(activeSprint.id, taskIndex, task.id);
                       const isDoubleRollover = task.rolloverCount >= 2;
+
                       return (
                         <div
                           key={task.id}
-                          className="py-3 flex items-start justify-between gap-3 group"
+                          draggable
+                          onDragStart={() => setDraggedTaskId(task.id)}
+                          className="bg-white rounded-[3px] p-3 shadow-[0_1px_2px_rgba(9,30,66,0.18)] border border-transparent hover:border-[#4C9AFF] transition cursor-grab active:cursor-grabbing space-y-2.5"
                         >
-                          <label className="flex items-start gap-3 cursor-pointer select-none flex-1">
-                            <input
-                              type="checkbox"
-                              checked={task.done}
-                              onChange={() => toggleSprintTask(selectedSprint.id, task.id)}
-                              className="mt-0.5 w-4 h-4 rounded border-neutral-300 accent-neutral-900"
-                            />
-                            <div className="flex-1 space-y-1">
+                          <div
+                            className={`text-sm leading-snug ${
+                              colStatus === 'done'
+                                ? 'line-through text-[#6B778C]'
+                                : 'text-[#172B4D]'
+                            }`}
+                          >
+                            {task.title}
+                          </div>
+
+                          {/* Rollover Lozenge */}
+                          {task.rolloverCount > 0 && (
+                            <div className="flex flex-wrap items-center gap-1.5">
                               <span
-                                className={`text-sm leading-snug block ${
-                                  task.done ? 'line-through text-neutral-400' : 'text-neutral-900'
+                                className={`px-1.5 py-0.5 rounded-[3px] text-[10px] font-bold uppercase ${
+                                  isDoubleRollover
+                                    ? 'bg-[#FFEBE6] text-[#BF2600]'
+                                    : 'bg-[#FFFAE6] text-[#974F0C]'
                                 }`}
                               >
-                                {task.title}
+                                {task.rolloverCount}회 이월됨
                               </span>
-
-                              {task.rolloverCount > 0 && (
-                                <div className="flex items-center gap-2 text-[11px] text-neutral-500">
-                                  <span>{task.rolloverCount}회 이월</span>
-                                  {isDoubleRollover && !task.halved && (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        halveTaskScope(selectedSprint.id, task.id);
-                                      }}
-                                      className="px-1.5 py-0.5 rounded bg-neutral-900 text-white font-medium"
-                                    >
-                                      범위 1/2 축소
-                                    </button>
-                                  )}
-                                </div>
+                              {isDoubleRollover && !task.halved && (
+                                <button
+                                  onClick={() => halveTaskScope(activeSprint.id, task.id)}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] bg-[#DE350B] text-white text-[10px] font-semibold"
+                                >
+                                  <Scissors className="w-2.5 h-2.5" />
+                                  <span>범위 1/2 축소</span>
+                                </button>
                               )}
                             </div>
-                          </label>
+                          )}
 
-                          <div className="flex items-center gap-2 shrink-0 text-xs text-neutral-400">
-                            <span>{task.slot}</span>
-                            <span className="w-8 text-right font-mono text-neutral-600">
-                              {task.hours}h
-                            </span>
-                            {!task.done && selectedSprint.id < 13 && (
-                              <button
-                                onClick={() => rolloverTaskToNextSprint(selectedSprint.id, task.id)}
-                                className="text-[11px] text-neutral-400 hover:text-neutral-900 px-1"
-                                title="다음 스프린트로 이월"
+                          {/* Card Footer: Key + Slot + Story Hours + Status Switcher */}
+                          <div className="flex items-center justify-between gap-2 pt-1">
+                            <div className="flex items-center gap-1.5">
+                              <CheckSquare className="w-3.5 h-3.5 text-[#4BADE8] shrink-0" />
+                              <span className="text-xs font-semibold text-[#5E6C84]">
+                                {issueKey}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                              <span className="px-1.5 py-0.5 rounded-[3px] bg-[#F4F5F7] text-[#42526E] text-[11px] font-medium">
+                                {task.slot}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-full bg-[#DFE1E6] text-[#172B4D] text-[11px] font-bold">
+                                {task.hours}h
+                              </span>
+                              <select
+                                value={colStatus}
+                                onChange={(e) =>
+                                  setTaskStatus(
+                                    activeSprint.id,
+                                    task.id,
+                                    e.target.value as IssueStatus
+                                  )
+                                }
+                                className={`text-[11px] font-bold px-1.5 py-0.5 rounded-[3px] cursor-pointer outline-none ${STATUS_META[colStatus].lozengeClass}`}
                               >
-                                이월
+                                <option value="todo">할 일</option>
+                                <option value="in_progress">진행 중</option>
+                                <option value="done">완료</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Quick Create Issue in Todo Column */}
+                  {colStatus === 'todo' && (
+                    <div className="mt-2 pt-1">
+                      {creatingInSprintId === activeSprint.id ? (
+                        <div className="bg-white p-2 rounded-[3px] shadow-sm border border-[#0052CC] space-y-2">
+                          <input
+                            type="text"
+                            autoFocus
+                            placeholder="무엇을 해야 하나요?"
+                            value={newTaskTitle}
+                            onChange={(e) => setNewTaskTitle(e.target.value)}
+                            onKeyDown={(e) =>
+                              e.key === 'Enter' && addIssueToSprint(activeSprint.id)
+                            }
+                            className="w-full text-xs outline-none text-[#172B4D]"
+                          />
+                          <div className="flex items-center justify-between gap-1">
+                            <div className="flex items-center gap-1">
+                              <select
+                                value={newTaskSlot}
+                                onChange={(e) => setNewTaskSlot(e.target.value)}
+                                className="text-[11px] bg-[#F4F5F7] px-1.5 py-0.5 rounded-[3px]"
+                              >
+                                {SPRINT_SLOTS.map((s) => (
+                                  <option key={s.key} value={s.key}>
+                                    {s.key}
+                                  </option>
+                                ))}
+                              </select>
+                              <input
+                                type="number"
+                                step="0.5"
+                                min="0.5"
+                                value={newTaskHours}
+                                onChange={(e) => setNewTaskHours(e.target.value)}
+                                className="w-12 text-[11px] bg-[#F4F5F7] px-1.5 py-0.5 rounded-[3px] text-center"
+                              />
+                              <span className="text-[11px] text-[#5E6C84]">h</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => setCreatingInSprintId(null)}
+                                className="px-2 py-0.5 text-[11px] text-[#5E6C84]"
+                              >
+                                취소
+                              </button>
+                              <button
+                                onClick={() => addIssueToSprint(activeSprint.id)}
+                                className="px-2 py-0.5 rounded-[3px] bg-[#0052CC] text-white text-[11px] font-semibold"
+                              >
+                                만들기
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setCreatingInSprintId(activeSprint.id)}
+                          className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-[3px] hover:bg-[#EBECF0] text-xs font-medium text-[#42526E] transition"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>이슈 만들기</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* MENU 2: BACKLOG (백로그: D-day + S1~S13 접이식 리스트) */}
+      {activeMenu === 'backlog' && (
+        <div className="flex-1 max-w-5xl w-full mx-auto px-4 py-5 space-y-4">
+          <div className="flex items-center justify-between pb-2">
+            <div>
+              <div className="text-xs text-[#5E6C84]">Projects / AI 전환 6개월</div>
+              <h1 className="text-lg font-semibold text-[#172B4D]">백로그 (S1 – S13)</h1>
+            </div>
+          </div>
+
+          {/* Sprint 0: D-day Checklist Block */}
+          <div className="bg-[#F4F5F7] rounded-[3px] border border-[#DFE1E6] overflow-hidden">
+            <div
+              onClick={() => setExpandedSprints((p) => ({ ...p, 0: !p[0] }))}
+              className="px-3 py-2.5 flex items-center justify-between cursor-pointer select-none hover:bg-[#EBECF0]/60"
+            >
+              <div className="flex items-center gap-2">
+                {expandedSprints[0] ? (
+                  <ChevronDown className="w-4 h-4 text-[#42526E]" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-[#42526E]" />
+                )}
+                <span className="text-xs font-bold text-[#172B4D]">
+                  D-day 체크리스트 · 10월 24일 (토)
+                </span>
+                <span className="text-xs text-[#5E6C84]">({state.dDayChecklist.length}개 이슈)</span>
+              </div>
+              <span className="px-2 py-0.5 rounded-full bg-[#E3FCEF] text-[#006644] text-[11px] font-bold">
+                완료 {state.dDayChecklist.filter((d) => getTaskStatus(d) === 'done').length} /{' '}
+                {state.dDayChecklist.length}
+              </span>
+            </div>
+
+            {expandedSprints[0] && (
+              <div className="bg-white divide-y divide-[#DFE1E6] border-t border-[#DFE1E6]">
+                {state.dDayChecklist.map((item, idx) => {
+                  const st = getTaskStatus(item);
+                  return (
+                    <div
+                      key={item.id}
+                      className="px-3 py-2 flex items-center justify-between gap-2 hover:bg-[#F4F5F7] text-xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <CheckSquare className="w-3.5 h-3.5 text-[#4BADE8] shrink-0" />
+                        <span className="font-semibold text-[#5E6C84] shrink-0">
+                          AI-00{idx + 1}
+                        </span>
+                        <span
+                          className={`truncate ${
+                            st === 'done' ? 'line-through text-[#6B778C]' : 'text-[#172B4D]'
+                          }`}
+                        >
+                          {item.title}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="px-2 py-0.5 rounded-full bg-[#DFE1E6] text-[#172B4D] text-[11px] font-bold">
+                          {item.duration}
+                        </span>
+                        <select
+                          value={st}
+                          onChange={(e) =>
+                            setDDayStatus(item.id, e.target.value as IssueStatus)
+                          }
+                          className={`text-[11px] font-bold px-2 py-0.5 rounded-[3px] cursor-pointer outline-none ${STATUS_META[st].lozengeClass}`}
+                        >
+                          <option value="todo">할 일</option>
+                          <option value="in_progress">진행 중</option>
+                          <option value="done">완료</option>
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Sprint 1 ~ 13 Collapsible Jira Backlog Blocks */}
+          {state.sprints.map((sp) => {
+            const isExpanded = Boolean(expandedSprints[sp.id]);
+            const hours = getSprintHourBreakdown(sp);
+            const targetH = getEffectiveTargetHours(sp);
+
+            return (
+              <div
+                key={sp.id}
+                className="bg-[#F4F5F7] rounded-[3px] border border-[#DFE1E6] overflow-hidden"
+              >
+                {/* Sprint Header Bar */}
+                <div
+                  onClick={() => setExpandedSprints((p) => ({ ...p, [sp.id]: !p[sp.id] }))}
+                  className="px-3 py-2.5 flex flex-wrap items-center justify-between gap-2 cursor-pointer select-none hover:bg-[#EBECF0]/60"
+                >
+                  <div className="flex flex-wrap items-center gap-2 min-w-0">
+                    {isExpanded ? (
+                      <ChevronDown className="w-4 h-4 text-[#42526E] shrink-0" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-[#42526E] shrink-0" />
+                    )}
+                    <span className="text-xs font-bold text-[#172B4D]">{sp.title}</span>
+                    <span className="text-xs text-[#5E6C84]">{sp.period}</span>
+                    <span className="text-xs font-medium text-[#172B4D] truncate">
+                      — {sp.goal}
+                    </span>
+                    {sp.retro.goalAchieved === true && (
+                      <span className="px-1.5 py-0.5 rounded-[3px] bg-[#E3FCEF] text-[#006644] text-[10px] font-bold">
+                        달성 ({sp.retro.actualHours}h · 재미 {sp.retro.funScore ?? '-'}/5)
+                      </span>
+                    )}
+                  </div>
+
+                  <div
+                    className="flex items-center gap-1.5 shrink-0"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span className="px-2 py-0.5 rounded-full bg-[#DFE1E6] text-[#42526E] text-[11px] font-bold">
+                      {hours.todoH}h
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-[#DEEBFF] text-[#0747A6] text-[11px] font-bold">
+                      {hours.inProgressH}h
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-[#E3FCEF] text-[#006644] text-[11px] font-bold">
+                      {hours.doneH}/{targetH}h
+                    </span>
+                    <button
+                      onClick={() => {
+                        setActiveSprintId(sp.id);
+                        setActiveMenu('board');
+                      }}
+                      className="ml-1 px-2.5 py-1 rounded-[3px] bg-white border border-[#DFE1E6] hover:bg-[#EBECF0] text-xs font-medium text-[#42526E]"
+                    >
+                      보드 열기
+                    </button>
+                  </div>
+                </div>
+
+                {/* Expanded Sprint Issue Rows */}
+                {isExpanded && (
+                  <div className="bg-white divide-y divide-[#DFE1E6] border-t border-[#DFE1E6]">
+                    {sp.tasks.map((task, idx) => {
+                      const st = getTaskStatus(task);
+                      const issueKey = formatIssueKey(sp.id, idx, task.id);
+                      const isDoubleRollover = task.rolloverCount >= 2;
+
+                      return (
+                        <div
+                          key={task.id}
+                          className="px-3 py-2 flex items-center justify-between gap-2 hover:bg-[#F4F5F7] text-xs"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <CheckSquare className="w-3.5 h-3.5 text-[#4BADE8] shrink-0" />
+                            <span className="font-semibold text-[#5E6C84] w-14 shrink-0">
+                              {issueKey}
+                            </span>
+                            <span
+                              className={`truncate ${
+                                st === 'done'
+                                  ? 'line-through text-[#6B778C]'
+                                  : 'text-[#172B4D]'
+                              }`}
+                            >
+                              {task.title}
+                            </span>
+                            {task.rolloverCount > 0 && (
+                              <span
+                                className={`px-1.5 py-0.5 rounded-[3px] text-[10px] font-bold shrink-0 ${
+                                  isDoubleRollover
+                                    ? 'bg-[#FFEBE6] text-[#BF2600]'
+                                    : 'bg-[#FFFAE6] text-[#974F0C]'
+                                }`}
+                              >
+                                {task.rolloverCount}회 이월
+                              </span>
+                            )}
+                            {isDoubleRollover && !task.halved && (
+                              <button
+                                onClick={() => halveTaskScope(sp.id, task.id)}
+                                className="px-1.5 py-0.5 rounded-[3px] bg-[#DE350B] text-white text-[10px] font-semibold shrink-0"
+                              >
+                                범위 1/2 축소
                               </button>
                             )}
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="px-1.5 py-0.5 rounded-[3px] bg-[#F4F5F7] text-[#42526E] text-[11px] hidden sm:inline">
+                              {task.slot}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-[#DFE1E6] text-[#172B4D] text-[11px] font-bold w-10 text-center">
+                              {task.hours}h
+                            </span>
+                            <select
+                              value={st}
+                              onChange={(e) =>
+                                setTaskStatus(sp.id, task.id, e.target.value as IssueStatus)
+                              }
+                              className={`text-[11px] font-bold px-2 py-0.5 rounded-[3px] cursor-pointer outline-none ${STATUS_META[st].lozengeClass}`}
+                            >
+                              <option value="todo">할 일</option>
+                              <option value="in_progress">진행 중</option>
+                              <option value="done">완료</option>
+                            </select>
                             {task.id.startsWith('custom-') && (
                               <button
-                                onClick={() => deleteTask(selectedSprint.id, task.id)}
-                                className="text-neutral-300 hover:text-neutral-700"
+                                onClick={() => deleteIssue(sp.id, task.id)}
+                                className="text-[#A5ADBA] hover:text-[#DE350B]"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -698,442 +1073,306 @@ export default function App() {
                         </div>
                       );
                     })}
-                  </div>
 
-                  {/* Minimal Add Task Row */}
-                  <div className="flex items-center gap-2 pt-1">
-                    <input
-                      type="text"
-                      placeholder="+ 할 일 추가"
-                      value={newTaskTitle}
-                      onChange={(e) => setNewTaskTitle(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && addCustomTask(selectedSprint.id)}
-                      className="flex-1 text-sm py-1.5 px-2 border-b border-transparent focus:border-neutral-300 outline-none placeholder:text-neutral-400"
-                    />
-                    {newTaskTitle.trim() && (
-                      <>
-                        <select
-                          value={newTaskSlot}
-                          onChange={(e) => setNewTaskSlot(e.target.value)}
-                          className="text-xs border border-neutral-200 rounded px-2 py-1 bg-white"
-                        >
-                          {SPRINT_SLOTS.map((s) => (
-                            <option key={s.key} value={s.key}>
-                              {s.key}
-                            </option>
-                          ))}
-                        </select>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0.5"
-                          value={newTaskHours}
-                          onChange={(e) => setNewTaskHours(e.target.value)}
-                          className="w-14 text-xs border border-neutral-200 rounded px-2 py-1 text-center"
-                        />
-                        <button
-                          onClick={() => addCustomTask(selectedSprint.id)}
-                          className="px-2.5 py-1 rounded bg-neutral-900 text-white text-xs"
-                        >
-                          추가
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Minimal Retro Section */}
-                <div className="pt-4 border-t border-neutral-200 space-y-4">
-                  <div className="text-xs font-medium text-neutral-500">회고 · 기록</div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <textarea
-                      rows={2}
-                      placeholder="Keep"
-                      value={selectedSprint.retro.keep}
-                      onChange={(e) =>
-                        updateAppState((prev) => ({
-                          ...prev,
-                          sprints: prev.sprints.map((s) =>
-                            s.id === selectedSprint.id
-                              ? { ...s, retro: { ...s.retro, keep: e.target.value } }
-                              : s
-                          ),
-                        }))
-                      }
-                      className="w-full p-2.5 rounded-md border border-neutral-200 text-xs outline-none focus:border-neutral-900 resize-none"
-                    />
-                    <textarea
-                      rows={2}
-                      placeholder="Problem"
-                      value={selectedSprint.retro.problem}
-                      onChange={(e) =>
-                        updateAppState((prev) => ({
-                          ...prev,
-                          sprints: prev.sprints.map((s) =>
-                            s.id === selectedSprint.id
-                              ? { ...s, retro: { ...s.retro, problem: e.target.value } }
-                              : s
-                          ),
-                        }))
-                      }
-                      className="w-full p-2.5 rounded-md border border-neutral-200 text-xs outline-none focus:border-neutral-900 resize-none"
-                    />
-                    <textarea
-                      rows={2}
-                      placeholder="Try"
-                      value={selectedSprint.retro.tryText}
-                      onChange={(e) =>
-                        updateAppState((prev) => ({
-                          ...prev,
-                          sprints: prev.sprints.map((s) =>
-                            s.id === selectedSprint.id
-                              ? { ...s, retro: { ...s.retro, tryText: e.target.value } }
-                              : s
-                          ),
-                        }))
-                      }
-                      className="w-full p-2.5 rounded-md border border-neutral-200 text-xs outline-none focus:border-neutral-900 resize-none"
-                    />
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-4 text-xs pt-1">
-                    {/* Fun Score */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-neutral-500">재미</span>
-                      <div className="flex items-center gap-1">
-                        {[1, 2, 3, 4, 5].map((num) => (
-                          <button
-                            key={num}
-                            onClick={() =>
-                              updateAppState((prev) => ({
-                                ...prev,
-                                sprints: prev.sprints.map((s) =>
-                                  s.id === selectedSprint.id
-                                    ? { ...s, retro: { ...s.retro, funScore: num } }
-                                    : s
-                                ),
-                              }))
-                            }
-                            className={`w-6 h-6 rounded border text-xs transition ${
-                              selectedSprint.retro.funScore === num
-                                ? 'bg-neutral-900 text-white border-neutral-900'
-                                : 'border-neutral-200 text-neutral-600 hover:border-neutral-400'
-                            }`}
+                    {/* Inline Create Issue in Backlog */}
+                    <div className="px-3 py-1.5 bg-[#FAFBFC]">
+                      {creatingInSprintId === sp.id ? (
+                        <div className="flex flex-wrap items-center gap-2 py-1">
+                          <input
+                            type="text"
+                            autoFocus
+                            placeholder="새 이슈 제목 입력..."
+                            value={newTaskTitle}
+                            onChange={(e) => setNewTaskTitle(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && addIssueToSprint(sp.id)}
+                            className="flex-1 min-w-[180px] text-xs px-2 py-1 border border-[#0052CC] rounded-[3px] outline-none"
+                          />
+                          <select
+                            value={newTaskSlot}
+                            onChange={(e) => setNewTaskSlot(e.target.value)}
+                            className="text-xs border border-[#DFE1E6] rounded-[3px] px-2 py-1 bg-white"
                           >
-                            {num}
+                            {SPRINT_SLOTS.map((s) => (
+                              <option key={s.key} value={s.key}>
+                                {s.key}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0.5"
+                            value={newTaskHours}
+                            onChange={(e) => setNewTaskHours(e.target.value)}
+                            className="w-14 text-xs border border-[#DFE1E6] rounded-[3px] px-2 py-1 text-center"
+                          />
+                          <button
+                            onClick={() => addIssueToSprint(sp.id)}
+                            className="px-2.5 py-1 rounded-[3px] bg-[#0052CC] text-white text-xs font-semibold"
+                          >
+                            만들기
                           </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Actual Hours */}
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-neutral-500">투입</span>
-                      <input
-                        type="number"
-                        step="0.5"
-                        min="0"
-                        value={selectedSprint.retro.actualHours}
-                        onChange={(e) =>
-                          updateAppState((prev) => ({
-                            ...prev,
-                            sprints: prev.sprints.map((s) =>
-                              s.id === selectedSprint.id
-                                ? {
-                                    ...s,
-                                    retro: {
-                                      ...s.retro,
-                                      actualHours: parseFloat(e.target.value) || 0,
-                                    },
-                                  }
-                                : s
-                            ),
-                          }))
-                        }
-                        className="w-14 px-2 py-1 rounded border border-neutral-200 text-center font-mono"
-                      />
-                      <span className="text-neutral-400">
-                        / {getEffectiveTargetHours(selectedSprint)}h
-                      </span>
-                    </div>
-
-                    {/* Goal Achieved */}
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-neutral-500">목표 달성</span>
-                      <button
-                        onClick={() =>
-                          updateAppState((prev) => ({
-                            ...prev,
-                            sprints: prev.sprints.map((s) =>
-                              s.id === selectedSprint.id
-                                ? { ...s, retro: { ...s.retro, goalAchieved: true } }
-                                : s
-                            ),
-                          }))
-                        }
-                        className={`px-2 py-1 rounded border ${
-                          selectedSprint.retro.goalAchieved === true
-                            ? 'bg-neutral-900 text-white border-neutral-900'
-                            : 'border-neutral-200 text-neutral-600'
-                        }`}
-                      >
-                        예
-                      </button>
-                      <button
-                        onClick={() =>
-                          updateAppState((prev) => ({
-                            ...prev,
-                            sprints: prev.sprints.map((s) =>
-                              s.id === selectedSprint.id
-                                ? { ...s, retro: { ...s.retro, goalAchieved: false } }
-                                : s
-                            ),
-                          }))
-                        }
-                        className={`px-2 py-1 rounded border ${
-                          selectedSprint.retro.goalAchieved === false
-                            ? 'bg-neutral-900 text-white border-neutral-900'
-                            : 'border-neutral-200 text-neutral-600'
-                        }`}
-                      >
-                        아니오
-                      </button>
+                          <button
+                            onClick={() => setCreatingInSprintId(null)}
+                            className="px-2 py-1 text-xs text-[#5E6C84]"
+                          >
+                            취소
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setCreatingInSprintId(sp.id)}
+                          className="flex items-center gap-1 text-xs text-[#5E6C84] hover:text-[#172B4D] py-0.5"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>이슈 만들기</span>
+                        </button>
+                      )}
                     </div>
                   </div>
-
-                  <input
-                    type="url"
-                    placeholder="결과물 링크 (GitHub 커밋 / 배포 URL / 블로그)"
-                    value={selectedSprint.retro.githubUrl}
-                    onChange={(e) =>
-                      updateAppState((prev) => ({
-                        ...prev,
-                        sprints: prev.sprints.map((s) =>
-                          s.id === selectedSprint.id
-                            ? { ...s, retro: { ...s.retro, githubUrl: e.target.value } }
-                            : s
-                        ),
-                      }))
-                    }
-                    className="w-full px-2.5 py-1.5 rounded-md border border-neutral-200 text-xs outline-none focus:border-neutral-900"
-                  />
-                </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
+            );
+          })}
 
-        {/* TAB 2: OVERVIEW (전체 진척표) */}
-        {activeTab === 'overview' && (
-          <div className="space-y-10">
-            {/* 13 Sprints Table */}
-            <section className="space-y-3">
-              <h2 className="text-sm font-semibold text-neutral-900">스프린트 1 – 13 진척 트래커</h2>
-              <div className="border-t border-b border-neutral-200 divide-y divide-neutral-100 text-xs">
-                {state.sprints.map((sp) => {
-                  const doneCount = sp.tasks.filter((t) => t.done).length;
-                  return (
-                    <div
-                      key={sp.id}
-                      onClick={() => {
-                        setSelectedSprintId(sp.id);
-                        setActiveTab('sprint');
-                      }}
-                      className="py-2.5 flex items-center justify-between gap-3 cursor-pointer hover:bg-neutral-50 px-1"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="w-7 font-mono font-semibold text-neutral-900 shrink-0">
-                          S{sp.id}
-                        </span>
-                        <span className="text-neutral-400 w-24 shrink-0 hidden sm:inline">
-                          {sp.period.split(' ').slice(0, 3).join(' ')}
-                        </span>
-                        <span className="text-neutral-800 truncate">{sp.goal}</span>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0 font-mono text-neutral-500">
-                        <span>
-                          {doneCount}/{sp.tasks.length}
-                        </span>
-                        <span className="w-10 text-right">{sp.retro.actualHours || 0}h</span>
-                        <span className="w-8 text-right">
-                          {sp.retro.funScore ? `${sp.retro.funScore}/5` : '-'}
-                        </span>
-                        <span className="w-5 text-right">
-                          {sp.retro.goalAchieved === true ? (
-                            <Check className="w-3.5 h-3.5 text-neutral-900 inline" />
-                          ) : (
-                            '-'
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            {/* Milestones & 6-Month Final Check */}
-            <section className="space-y-3">
-              <h2 className="text-sm font-semibold text-neutral-900">마일스톤 (M1 – M4)</h2>
-              <div className="border-t border-b border-neutral-200 divide-y divide-neutral-100 text-xs">
-                {state.milestones.map((m) => (
-                  <div
-                    key={m.id}
-                    className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
-                  >
-                    <label className="flex items-center gap-2.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={m.done}
-                        onChange={() =>
-                          updateAppState((prev) => ({
-                            ...prev,
-                            milestones: prev.milestones.map((item) =>
-                              item.id === m.id ? { ...item, done: !item.done } : item
-                            ),
-                          }))
-                        }
-                        className="w-4 h-4 rounded border-neutral-300 accent-neutral-900"
-                      />
-                      <span className="font-mono font-semibold w-6">{m.code}</span>
-                      <span className={m.done ? 'line-through text-neutral-400' : 'text-neutral-900'}>
-                        {m.title}
-                      </span>
-                      <span className="text-neutral-400">({m.timing})</span>
-                    </label>
+          {/* Compact Milestones & 3-Month Checkpoint in Backlog Footer */}
+          <div className="bg-[#F4F5F7] rounded-[3px] border border-[#DFE1E6] p-3 space-y-2">
+            <div className="flex items-center justify-between text-xs font-bold text-[#172B4D]">
+              <span>마일스톤 (M1 – M4) & ★ 3개월 체크포인트</span>
+              <span className="text-[#5E6C84] font-normal">
+                S1–S6 평균 재미: {s1ToS6Stats.avgFun ?? '-'}/5 · 주당 평균: {s1ToS6Stats.avgWeeklyHours}h
+              </span>
+            </div>
+            <div className="bg-white rounded-[3px] border border-[#DFE1E6] divide-y divide-[#DFE1E6] text-xs">
+              {state.milestones.map((m) => (
+                <div
+                  key={m.id}
+                  className="px-3 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                >
+                  <label className="flex items-center gap-2 cursor-pointer">
                     <input
-                      type="text"
-                      placeholder="증빙 링크/메모"
-                      value={m.evidenceUrl}
-                      onChange={(e) =>
+                      type="checkbox"
+                      checked={m.done}
+                      onChange={() =>
                         updateAppState((prev) => ({
                           ...prev,
                           milestones: prev.milestones.map((item) =>
-                            item.id === m.id ? { ...item, evidenceUrl: e.target.value } : item
+                            item.id === m.id ? { ...item, done: !item.done } : item
                           ),
                         }))
                       }
-                      className="sm:w-52 px-2 py-1 border border-neutral-200 rounded text-xs outline-none focus:border-neutral-900"
+                      className="w-3.5 h-3.5 accent-[#0052CC]"
                     />
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* 3-Month Checkpoint (Compact) */}
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-neutral-900">
-                  ★ 3개월 체크포인트 (S7 · 1월 말)
-                </h2>
-                <span className="text-xs text-neutral-500 font-mono">
-                  S1–S6 평균 재미: {s1ToS6Stats.avgFun ?? '-'}/5 · 주당: {s1ToS6Stats.avgWeeklyHours}h
-                </span>
-              </div>
-              <div className="border-t border-b border-neutral-200 divide-y divide-neutral-100 text-xs">
-                <div className="py-2.5 flex items-center justify-between">
-                  <span className="text-neutral-700">1. M1·M2 달성 여부</span>
-                  <div className="flex gap-1">
-                    {(
-                      [
-                        { key: 'both', label: '둘 다' },
-                        { key: 'one', label: '하나' },
-                        { key: 'none', label: '없음' },
-                      ] as const
-                    ).map((o) => (
-                      <button
-                        key={o.key}
-                        onClick={() =>
-                          updateAppState((prev) => ({
-                            ...prev,
-                            checkpoint: { ...prev.checkpoint, m1m2Status: o.key },
-                          }))
-                        }
-                        className={`px-2 py-1 rounded border ${
-                          state.checkpoint.m1m2Status === o.key
-                            ? 'bg-neutral-900 text-white border-neutral-900'
-                            : 'border-neutral-200 text-neutral-600'
-                        }`}
-                      >
-                        {o.label}
-                      </button>
-                    ))}
-                  </div>
+                    <span className="px-1.5 py-0.5 rounded-[3px] bg-[#DEEBFF] text-[#0747A6] font-bold text-[11px]">
+                      {m.code}
+                    </span>
+                    <span className={m.done ? 'line-through text-[#6B778C]' : 'font-medium'}>
+                      {m.title}
+                    </span>
+                    <span className="text-[#5E6C84]">({m.timing})</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="증빙 URL / 메모"
+                    value={m.evidenceUrl}
+                    onChange={(e) =>
+                      updateAppState((prev) => ({
+                        ...prev,
+                        milestones: prev.milestones.map((item) =>
+                          item.id === m.id ? { ...item, evidenceUrl: e.target.value } : item
+                        ),
+                      }))
+                    }
+                    className="sm:w-56 px-2 py-1 border border-[#DFE1E6] rounded-[3px] text-xs outline-none focus:border-[#0052CC]"
+                  />
                 </div>
-                <div className="py-2.5 flex items-center justify-between">
-                  <span className="text-neutral-700">4. 더 재미있었던 쪽</span>
-                  <div className="flex gap-1">
-                    {(
-                      [
-                        { key: 'A', label: '(A) UI·제품' },
-                        { key: 'B', label: '(B) 검색·실험' },
-                        { key: 'similar', label: '비슷' },
-                      ] as const
-                    ).map((o) => (
-                      <button
-                        key={o.key}
-                        onClick={() =>
-                          updateAppState((prev) => ({
-                            ...prev,
-                            checkpoint: { ...prev.checkpoint, preferTrack: o.key },
-                          }))
-                        }
-                        className={`px-2 py-1 rounded border ${
-                          state.checkpoint.preferTrack === o.key
-                            ? 'bg-neutral-900 text-white border-neutral-900'
-                            : 'border-neutral-200 text-neutral-600'
-                        }`}
-                      >
-                        {o.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="py-2.5 flex items-center justify-between">
-                  <span className="text-neutral-700">5. 사내 AI 적용 가능성</span>
-                  <div className="flex gap-1">
-                    {(
-                      [
-                        { key: 'high', label: '높음' },
-                        { key: 'medium', label: '보통' },
-                        { key: 'low', label: '낮음' },
-                      ] as const
-                    ).map((o) => (
-                      <button
-                        key={o.key}
-                        onClick={() =>
-                          updateAppState((prev) => ({
-                            ...prev,
-                            checkpoint: { ...prev.checkpoint, companyPossibility: o.key },
-                          }))
-                        }
-                        className={`px-2 py-1 rounded border ${
-                          state.checkpoint.companyPossibility === o.key
-                            ? 'bg-neutral-900 text-white border-neutral-900'
-                            : 'border-neutral-200 text-neutral-600'
-                        }`}
-                      >
-                        {o.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </section>
+              ))}
+            </div>
           </div>
-        )}
-      </main>
+        </div>
+      )}
 
-      {/* Minimal Settings Modal */}
+      {/* Jira "Complete Sprint (스프린트 완료)" Modal */}
+      {showCompleteModal && (
+        <div className="fixed inset-0 z-50 bg-[#091E42]/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[3px] max-w-lg w-full p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-base font-semibold text-[#172B4D]">
+              {activeSprint.title} 완료 ({activeSprint.goal})
+            </h2>
+
+            <div className="p-3 rounded-[3px] bg-[#F4F5F7] text-xs space-y-1 text-[#42526E]">
+              <div>
+                · 완료(DONE)된 이슈:{' '}
+                <strong>
+                  {activeSprint.tasks.filter((t) => getTaskStatus(t) === 'done').length}개 (자동 합산{' '}
+                  {activeHours.doneH}h)
+                </strong>
+              </div>
+              <div>
+                · 미완료 이슈:{' '}
+                <strong>
+                  {
+                    activeSprint.tasks.filter(
+                      (t) =>
+                        getTaskStatus(t) !== 'done' &&
+                        !t.title.includes('버퍼') &&
+                        !t.title.includes('회고')
+                    ).length
+                  }
+                  개
+                </strong>
+              </div>
+              {activeSprint.id < 13 && (
+                <label className="flex items-center gap-2 pt-1 cursor-pointer text-[#172B4D] font-medium">
+                  <input
+                    type="checkbox"
+                    checked={modalRolloverUnfinished}
+                    onChange={(e) => setModalRolloverUnfinished(e.target.checked)}
+                    className="accent-[#0052CC]"
+                  />
+                  <span>미완료 이슈를 Sprint {activeSprint.id + 1}(다음 스프린트)로 자동 이월</span>
+                </label>
+              )}
+            </div>
+
+            {/* Hours + Fun Score + Goal Achieved */}
+            <div className="grid grid-cols-3 gap-3 text-xs">
+              <div>
+                <label className="block font-semibold text-[#5E6C84] mb-1">
+                  총 실제 투입 시간 (h)
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  value={modalActualHours}
+                  onChange={(e) => setModalActualHours(e.target.value)}
+                  className="w-full px-2.5 py-1.5 rounded-[3px] border border-[#DFE1E6] font-semibold outline-none focus:border-[#0052CC]"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-[#5E6C84] mb-1">재미 점수 (1–5)</label>
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setModalFunScore(n)}
+                      className={`w-7 h-7 rounded-[3px] font-bold border ${
+                        modalFunScore === n
+                          ? 'bg-[#0052CC] text-white border-[#0052CC]'
+                          : 'border-[#DFE1E6] text-[#42526E]'
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-[#5E6C84] mb-1">DoD 목표 달성</label>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setModalGoalAchieved(true)}
+                    className={`flex-1 py-1.5 rounded-[3px] font-bold border ${
+                      modalGoalAchieved
+                        ? 'bg-[#006644] text-white border-[#006644]'
+                        : 'border-[#DFE1E6] text-[#42526E]'
+                    }`}
+                  >
+                    달성
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModalGoalAchieved(false)}
+                    className={`flex-1 py-1.5 rounded-[3px] font-bold border ${
+                      !modalGoalAchieved
+                        ? 'bg-[#DE350B] text-white border-[#DE350B]'
+                        : 'border-[#DFE1E6] text-[#42526E]'
+                    }`}
+                  >
+                    미달
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* KPT Retro Inputs */}
+            <div className="space-y-2.5 text-xs">
+              <div>
+                <label className="block font-semibold text-[#5E6C84] mb-1">Keep (유지할 점)</label>
+                <input
+                  type="text"
+                  value={modalKeep}
+                  onChange={(e) => setModalKeep(e.target.value)}
+                  placeholder="주말 오전 2시간 슬롯을 지킨 것..."
+                  className="w-full px-2.5 py-1.5 rounded-[3px] border border-[#DFE1E6] outline-none focus:border-[#0052CC]"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-[#5E6C84] mb-1">Problem (아쉬운 점)</label>
+                <input
+                  type="text"
+                  value={modalProblem}
+                  onChange={(e) => setModalProblem(e.target.value)}
+                  placeholder="평일 야근으로 화요일 슬롯 부족..."
+                  className="w-full px-2.5 py-1.5 rounded-[3px] border border-[#DFE1E6] outline-none focus:border-[#0052CC]"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-[#5E6C84] mb-1">Try (다음 시도)</label>
+                <input
+                  type="text"
+                  value={modalTry}
+                  onChange={(e) => setModalTry(e.target.value)}
+                  placeholder="버퍼 슬롯에 이월 작업 우선 배치..."
+                  className="w-full px-2.5 py-1.5 rounded-[3px] border border-[#DFE1E6] outline-none focus:border-[#0052CC]"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-[#5E6C84] mb-1">
+                  결과물 링크 (GitHub 커밋 / README / 배포 URL)
+                </label>
+                <input
+                  type="url"
+                  value={modalGithubUrl}
+                  onChange={(e) => setModalGithubUrl(e.target.value)}
+                  placeholder="https://github.com/..."
+                  className="w-full px-2.5 py-1.5 rounded-[3px] border border-[#DFE1E6] outline-none focus:border-[#0052CC]"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setShowCompleteModal(false)}
+                className="px-3 py-1.5 rounded-[3px] hover:bg-[#F4F5F7] text-xs font-medium text-[#42526E]"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleCompleteSprint}
+                className="px-4 py-1.5 rounded-[3px] bg-[#0052CC] hover:bg-[#0065FF] text-white text-xs font-semibold"
+              >
+                스프린트 완료
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Supabase Sync & Backup Modal */}
       {showSettingsModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-md w-full p-5 border border-neutral-200 shadow-lg space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-[#091E42]/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[3px] max-w-md w-full p-5 shadow-xl space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">Supabase 동기화 설정</h3>
+              <h3 className="text-sm font-semibold text-[#172B4D]">Supabase 동기화 설정</h3>
               <button
                 onClick={() => setShowSettingsModal(false)}
-                className="text-xs text-neutral-500 hover:text-neutral-900"
+                className="text-xs text-[#5E6C84] hover:text-[#172B4D]"
               >
                 닫기
               </button>
@@ -1141,18 +1380,18 @@ export default function App() {
 
             <div className="space-y-2.5 text-xs">
               <div>
-                <label className="block text-neutral-500 mb-1">Supabase URL</label>
+                <label className="block font-semibold text-[#5E6C84] mb-1">Supabase URL</label>
                 <input
                   type="url"
                   value={syncConfig.supabaseUrl}
                   onChange={(e) =>
                     setSyncConfig((prev) => ({ ...prev, supabaseUrl: e.target.value }))
                   }
-                  className="w-full px-2.5 py-1.5 rounded border border-neutral-300 outline-none focus:border-neutral-900"
+                  className="w-full px-2.5 py-1.5 rounded-[3px] border border-[#DFE1E6] outline-none focus:border-[#0052CC]"
                 />
               </div>
               <div>
-                <label className="block text-neutral-500 mb-1">Anon Key</label>
+                <label className="block font-semibold text-[#5E6C84] mb-1">Anon Key</label>
                 <input
                   type="password"
                   placeholder="eyJhbGci..."
@@ -1160,18 +1399,18 @@ export default function App() {
                   onChange={(e) =>
                     setSyncConfig((prev) => ({ ...prev, supabaseAnonKey: e.target.value }))
                   }
-                  className="w-full px-2.5 py-1.5 rounded border border-neutral-300 outline-none focus:border-neutral-900"
+                  className="w-full px-2.5 py-1.5 rounded-[3px] border border-[#DFE1E6] outline-none focus:border-[#0052CC]"
                 />
               </div>
               <div>
-                <label className="block text-neutral-500 mb-1">동기화 키</label>
+                <label className="block font-semibold text-[#5E6C84] mb-1">동기화 키</label>
                 <input
                   type="text"
                   value={syncConfig.syncKey}
                   onChange={(e) =>
                     setSyncConfig((prev) => ({ ...prev, syncKey: e.target.value }))
                   }
-                  className="w-full px-2.5 py-1.5 rounded border border-neutral-300 font-mono outline-none focus:border-neutral-900"
+                  className="w-full px-2.5 py-1.5 rounded-[3px] border border-[#DFE1E6] font-mono outline-none focus:border-[#0052CC]"
                 />
               </div>
             </div>
@@ -1189,7 +1428,7 @@ export default function App() {
                     alert(res.error);
                   }
                 }}
-                className="flex-1 py-2 rounded bg-neutral-900 text-white text-xs font-medium"
+                className="flex-1 py-2 rounded-[3px] bg-[#0052CC] hover:bg-[#0065FF] text-white text-xs font-semibold"
               >
                 저장 및 동기화
               </button>
@@ -1203,20 +1442,20 @@ export default function App() {
                     setShowSettingsModal(false);
                   }
                 }}
-                className="px-3 py-2 rounded border border-neutral-200 text-xs text-neutral-700 inline-flex items-center gap-1"
+                className="px-3 py-2 rounded-[3px] bg-[#F4F5F7] hover:bg-[#EBECF0] text-xs text-[#42526E] inline-flex items-center gap-1"
               >
                 <RefreshCw className="w-3 h-3" />
                 <span>불러오기</span>
               </button>
             </div>
 
-            <div className="pt-3 border-t border-neutral-100 flex items-center justify-between gap-2 text-xs">
+            <div className="pt-3 border-t border-[#DFE1E6] flex items-center justify-between text-xs text-[#5E6C84]">
               <button
                 onClick={() => {
                   navigator.clipboard.writeText(SUPABASE_SETUP_SQL);
                   alert('SQL이 복사되었습니다.');
                 }}
-                className="inline-flex items-center gap-1 text-neutral-500 hover:text-neutral-900"
+                className="inline-flex items-center gap-1 hover:text-[#172B4D]"
               >
                 <Copy className="w-3 h-3" />
                 <span>초기 SQL 복사</span>
@@ -1224,12 +1463,12 @@ export default function App() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={exportBackupJson}
-                  className="inline-flex items-center gap-1 text-neutral-500 hover:text-neutral-900"
+                  className="inline-flex items-center gap-1 hover:text-[#172B4D]"
                 >
                   <Download className="w-3 h-3" />
                   <span>JSON 백업</span>
                 </button>
-                <label className="inline-flex items-center gap-1 text-neutral-500 hover:text-neutral-900 cursor-pointer">
+                <label className="inline-flex items-center gap-1 hover:text-[#172B4D] cursor-pointer">
                   <Upload className="w-3 h-3" />
                   <span>복원</span>
                   <input type="file" accept=".json" onChange={importBackupJson} className="hidden" />
