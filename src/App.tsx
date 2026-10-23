@@ -922,7 +922,7 @@ export default function App() {
                       setDraggedTaskId(null);
                     }
                   }}
-                  className="bg-[#F4F5F7] rounded-[3px] p-2.5 min-h-[420px] flex flex-col"
+                  className="bg-[#F4F5F7] rounded-[3px] p-2.5 md:min-h-[420px] flex flex-col"
                 >
                   {/* Column Header */}
                   <div className="px-1.5 py-1.5 mb-2 flex items-center justify-between">
