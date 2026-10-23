@@ -24,7 +24,7 @@ import {
   SprintData,
   SprintTask,
 } from './data/sprintPlan';
-import { getTaskGuide } from './data/taskGuides';
+import { getTaskGuide, SPRINT_PURPOSE_GUIDES } from './data/taskGuides';
 import {
   getSyncConfig,
   loadLocalState,
@@ -715,105 +715,149 @@ export default function App() {
       {/* MENU 1: ACTIVE SPRINT (칸반: 할 일 / 진행 중 / 완료) */}
       {activeMenu === 'board' && (
         <div className="flex-1 flex flex-col max-w-7xl w-full mx-auto px-4 py-5 space-y-4">
-          {/* Jira Board Header */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-[#DFE1E6]">
-            <div className="space-y-1">
+          {/* 상시 노출: 이번 스프린트 목적 & 완료 기준 히어로 영역 */}
+          <div className="bg-white rounded-[3px] border border-[#DFE1E6] border-l-4 border-l-[#0052CC] shadow-sm p-4 sm:p-5 space-y-4">
+            {/* 상단 컨트롤 바: 스프린트 선택 + 시간 배지 + 최소유지/완료 버튼 */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-[#EBECF0]">
               <div className="flex flex-wrap items-center gap-2 text-xs text-[#5E6C84]">
-                <span>Projects / AI 전환 6개월 /</span>
+                <span className="px-2 py-0.5 rounded-[3px] bg-[#DEEBFF] text-[#0747A6] font-bold">
+                  이번 스프린트 목적
+                </span>
                 <select
                   value={activeSprint.id}
                   onChange={(e) => setActiveSprintId(Number(e.target.value))}
-                  className="bg-[#F4F5F7] hover:bg-[#EBECF0] text-[#172B4D] font-semibold px-2 py-0.5 rounded-[3px] border border-[#DFE1E6] outline-none cursor-pointer"
+                  className="bg-[#F4F5F7] hover:bg-[#EBECF0] text-[#172B4D] font-bold px-2.5 py-1 rounded-[3px] border border-[#DFE1E6] outline-none cursor-pointer text-xs sm:text-sm"
                 >
                   {state.sprints.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.title} ({s.period})
+                      {s.title} ({s.period}) — {s.goal}
                     </option>
                   ))}
                 </select>
-                <span>· {activeSprint.phaseName}</span>
+                <span className="font-medium text-[#42526E]">· {activeSprint.phaseName}</span>
                 {activeSprint.retro.goalAchieved === true && (
-                  <span className="px-1.5 py-0.5 rounded-[3px] bg-[#E3FCEF] text-[#006644] font-bold text-[11px]">
-                    완료된 스프린트
+                  <span className="px-2 py-0.5 rounded-[3px] bg-[#E3FCEF] text-[#006644] font-bold text-[11px]">
+                    ✓ 완료된 스프린트
                   </span>
                 )}
               </div>
 
-              <h1 className="text-lg sm:text-xl font-semibold text-[#172B4D]">
-                {activeSprint.goal}
-              </h1>
-              <p className="text-xs text-[#5E6C84]">완료 기준 (DoD): {activeSprint.dod}</p>
+              {/* Right: Hour Counters + Min Maintenance + Complete Sprint Button */}
+              <div className="flex flex-wrap items-center gap-2 self-start lg:self-center">
+                <div className="flex items-center gap-1.5 text-xs font-semibold mr-1">
+                  <span
+                    className="px-2 py-0.5 rounded-full bg-[#DFE1E6] text-[#42526E]"
+                    title="할 일 시간"
+                  >
+                    할 일 {activeHours.todoH}h
+                  </span>
+                  <span
+                    className="px-2 py-0.5 rounded-full bg-[#DEEBFF] text-[#0747A6]"
+                    title="진행 중 시간"
+                  >
+                    진행 중 {activeHours.inProgressH}h
+                  </span>
+                  <span
+                    className="px-2 py-0.5 rounded-full bg-[#E3FCEF] text-[#006644]"
+                    title="완료 시간 (자동 합산)"
+                  >
+                    완료 {activeHours.doneH}h / {activeTargetH}h
+                  </span>
+                </div>
+
+                <button
+                  onClick={() =>
+                    updateAppState((prev) => ({
+                      ...prev,
+                      sprints: prev.sprints.map((s) =>
+                        s.id === activeSprint.id
+                          ? { ...s, minMaintenanceWeek1: !s.minMaintenanceWeek1 }
+                          : s
+                      ),
+                    }))
+                  }
+                  className={`px-2.5 py-1.5 rounded-[3px] text-xs font-medium transition ${
+                    activeSprint.minMaintenanceWeek1
+                      ? 'bg-[#FFEBE6] text-[#BF2600] border border-[#FFBDAD]'
+                      : 'bg-[#F4F5F7] text-[#42526E] hover:bg-[#EBECF0]'
+                  }`}
+                >
+                  1주 최소유지
+                </button>
+                <button
+                  onClick={() =>
+                    updateAppState((prev) => ({
+                      ...prev,
+                      sprints: prev.sprints.map((s) =>
+                        s.id === activeSprint.id
+                          ? { ...s, minMaintenanceWeek2: !s.minMaintenanceWeek2 }
+                          : s
+                      ),
+                    }))
+                  }
+                  className={`px-2.5 py-1.5 rounded-[3px] text-xs font-medium transition ${
+                    activeSprint.minMaintenanceWeek2
+                      ? 'bg-[#FFEBE6] text-[#BF2600] border border-[#FFBDAD]'
+                      : 'bg-[#F4F5F7] text-[#42526E] hover:bg-[#EBECF0]'
+                  }`}
+                >
+                  2주 최소유지
+                </button>
+
+                <button
+                  onClick={openCompleteSprintModal}
+                  className="px-3 py-1.5 rounded-[3px] bg-[#0052CC] hover:bg-[#0065FF] text-white text-xs font-semibold transition shadow-sm"
+                >
+                  스프린트 완료
+                </button>
+              </div>
             </div>
 
-            {/* Right: Hour Counters + Min Maintenance + Complete Sprint Button */}
-            <div className="flex flex-wrap items-center gap-2 self-start lg:self-center">
-              {/* Jira Estimation Badges */}
-              <div className="flex items-center gap-1.5 text-xs font-semibold mr-1">
-                <span
-                  className="px-2 py-0.5 rounded-full bg-[#DFE1E6] text-[#42526E]"
-                  title="할 일 시간"
-                >
-                  할 일 {activeHours.todoH}h
-                </span>
-                <span
-                  className="px-2 py-0.5 rounded-full bg-[#DEEBFF] text-[#0747A6]"
-                  title="진행 중 시간"
-                >
-                  진행 중 {activeHours.inProgressH}h
-                </span>
-                <span
-                  className="px-2 py-0.5 rounded-full bg-[#E3FCEF] text-[#006644]"
-                  title="완료 시간 (자동 합산)"
-                >
-                  완료 {activeHours.doneH}h / {activeTargetH}h
+            {/* 메인 목적 타이틀 & 상세 설명 */}
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#0052CC]">
+                  {activeSprint.title} ({activeSprint.period}) 핵심 목표
                 </span>
               </div>
+              <h1 className="text-xl sm:text-2xl font-bold text-[#172B4D] tracking-tight leading-snug">
+                “{activeSprint.goal}”
+              </h1>
+              {SPRINT_PURPOSE_GUIDES[activeSprint.id] && (
+                <p className="text-sm text-[#172B4D] leading-relaxed bg-[#F4F5F7] px-3.5 py-2.5 rounded-[3px] border border-[#DFE1E6]">
+                  {SPRINT_PURPOSE_GUIDES[activeSprint.id].corePurpose}
+                </p>
+              )}
+            </div>
 
-              <button
-                onClick={() =>
-                  updateAppState((prev) => ({
-                    ...prev,
-                    sprints: prev.sprints.map((s) =>
-                      s.id === activeSprint.id
-                        ? { ...s, minMaintenanceWeek1: !s.minMaintenanceWeek1 }
-                        : s
-                    ),
-                  }))
-                }
-                className={`px-2.5 py-1.5 rounded-[3px] text-xs font-medium transition ${
-                  activeSprint.minMaintenanceWeek1
-                    ? 'bg-[#FFEBE6] text-[#BF2600] border border-[#FFBDAD]'
-                    : 'bg-[#F4F5F7] text-[#42526E] hover:bg-[#EBECF0]'
-                }`}
-              >
-                1주 최소유지
-              </button>
-              <button
-                onClick={() =>
-                  updateAppState((prev) => ({
-                    ...prev,
-                    sprints: prev.sprints.map((s) =>
-                      s.id === activeSprint.id
-                        ? { ...s, minMaintenanceWeek2: !s.minMaintenanceWeek2 }
-                        : s
-                    ),
-                  }))
-                }
-                className={`px-2.5 py-1.5 rounded-[3px] text-xs font-medium transition ${
-                  activeSprint.minMaintenanceWeek2
-                    ? 'bg-[#FFEBE6] text-[#BF2600] border border-[#FFBDAD]'
-                    : 'bg-[#F4F5F7] text-[#42526E] hover:bg-[#EBECF0]'
-                }`}
-              >
-                2주 최소유지
-              </button>
+            {/* 하단 3단 핵심 지표: 완료 기준(DoD) / 핵심 산출물 / 페이스메이커 팁 */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
+              <div className="bg-[#E3FCEF]/60 border border-[#ABF5D1] rounded-[3px] px-3 py-2.5">
+                <div className="text-[11px] font-bold text-[#006644] mb-0.5">
+                  🎯 완료 기준 (DoD — 이것만 되면 성공)
+                </div>
+                <div className="text-xs font-semibold text-[#172B4D] leading-relaxed">
+                  {activeSprint.dod}
+                </div>
+              </div>
 
-              <button
-                onClick={openCompleteSprintModal}
-                className="px-3 py-1.5 rounded-[3px] bg-[#0052CC] hover:bg-[#0065FF] text-white text-xs font-semibold transition shadow-sm"
-              >
-                스프린트 완료
-              </button>
+              <div className="bg-[#DEEBFF]/50 border border-[#B3D4FF] rounded-[3px] px-3 py-2.5">
+                <div className="text-[11px] font-bold text-[#0747A6] mb-0.5">
+                  📦 이번 스프린트 핵심 산출물
+                </div>
+                <div className="text-xs font-semibold text-[#172B4D] leading-relaxed">
+                  {SPRINT_PURPOSE_GUIDES[activeSprint.id]?.keyOutcome ?? activeSprint.dod}
+                </div>
+              </div>
+
+              <div className="bg-[#FFFAE6] border border-[#FFE380] rounded-[3px] px-3 py-2.5">
+                <div className="text-[11px] font-bold text-[#974F0C] mb-0.5">
+                  💡 페이스메이커 가이드
+                </div>
+                <div className="text-xs text-[#172B4D] leading-relaxed">
+                  {activeSprint.memo}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1204,6 +1248,22 @@ export default function App() {
                 {/* Expanded Sprint Issue Rows */}
                 {isExpanded && (
                   <div className="bg-white divide-y divide-[#DFE1E6] border-t border-[#DFE1E6]">
+                    {/* 백로그 내 스프린트 목적 & 완료 기준 상시 요약 배너 */}
+                    <div className="px-3.5 py-3 bg-[#F8F9FA] border-b border-[#DFE1E6] space-y-1.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-[#0052CC]">
+                          🎯 스프린트 목적: {sp.goal}
+                        </span>
+                        <span className="text-[11px] font-semibold text-[#006644] bg-[#E3FCEF] px-2 py-0.5 rounded-[3px]">
+                          완료 기준(DoD): {sp.dod}
+                        </span>
+                      </div>
+                      {SPRINT_PURPOSE_GUIDES[sp.id] && (
+                        <p className="text-xs text-[#42526E] leading-relaxed">
+                          {SPRINT_PURPOSE_GUIDES[sp.id].corePurpose}
+                        </p>
+                      )}
+                    </div>
                     {sp.tasks.map((task) => {
                       const st = getTaskStatus(task);
                       const guide = getTaskGuide(task.id);
