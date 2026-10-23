@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookOpen,
+  Calendar,
   Check,
   CheckSquare,
   ChevronDown,
@@ -16,6 +17,13 @@ import {
   Upload,
   X,
 } from 'lucide-react';
+import {
+  downloadSprintsTasksIcs,
+  downloadWeeklyRoutineIcs,
+  getGoogleCalendarRoutineUrl,
+  getGoogleCalendarTaskUrl,
+  getTaskSchedule,
+} from './lib/calendarSync';
 import {
   AppState,
   getTaskStatus,
@@ -185,6 +193,7 @@ export default function App() {
   const [syncConfig, setSyncConfig] = useState<SyncConfig>(() => getSyncConfig());
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+  const [showCalendarModal, setShowCalendarModal] = useState<boolean>(false);
 
   // Inline copy feedback state ('guide-code' | 'supabase-sql' | null)
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -201,7 +210,11 @@ export default function App() {
 
   // Modal UX: ESC key to close, background scroll lock, and Mobile (Galaxy) Back Gesture support
   const isAnyModalOpen = Boolean(
-    selectedIssue || showCompleteModal || showSettingsModal || creatingInSprintId !== null
+    selectedIssue ||
+      showCompleteModal ||
+      showSettingsModal ||
+      showCalendarModal ||
+      creatingInSprintId !== null
   );
   const modalHistoryPushedRef = useRef<boolean>(false);
 
@@ -212,6 +225,7 @@ export default function App() {
         setSelectedIssue(null);
         setShowCompleteModal(false);
         setShowSettingsModal(false);
+        setShowCalendarModal(false);
         setCreatingInSprintId(null);
       }
     };
@@ -232,6 +246,7 @@ export default function App() {
           setSelectedIssue(null);
           setShowCompleteModal(false);
           setShowSettingsModal(false);
+          setShowCalendarModal(false);
           setCreatingInSprintId(null);
         }
       };
@@ -767,7 +782,7 @@ export default function App() {
           </nav>
         </div>
 
-        {/* Right: Create Issue + Sync Status & Settings */}
+        {/* Right: Create Issue + Calendar Sync + Cloud Settings */}
         <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
@@ -777,6 +792,16 @@ export default function App() {
           >
             <Plus className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
             <span className="hidden sm:inline">이슈 만들기</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowCalendarModal(true)}
+            title="캘린더 알림 연동"
+            className="inline-flex items-center justify-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-[3px] bg-[#F4F5F7] hover:bg-[#EBECF0] text-xs font-medium text-[#42526E] whitespace-nowrap shrink-0 transition cursor-pointer"
+          >
+            <Calendar className="w-3.5 h-3.5 text-[#0052CC]" />
+            <span className="hidden md:inline">캘린더 연동</span>
           </button>
 
           <button
@@ -2124,6 +2149,40 @@ export default function App() {
                 {item.title}
               </h2>
 
+              {/* Calendar Quick-Add Bar inside Issue Detail Modal */}
+              <div className="p-3 rounded-[3px] bg-[#F8FAFC] border border-[#DFE1E6] flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-1.5 text-[#42526E] font-medium">
+                  <Calendar className="w-3.5 h-3.5 text-[#0052CC] shrink-0" />
+                  <span>
+                    {isSprintIssue && targetSprint && targetTask
+                      ? `권장 일정: ${getTaskSchedule(targetSprint, targetTask).dateLabel}`
+                      : 'D-day 사전 준비 · 주간 6시간 공부 루틴 캘린더 등록'}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {isSprintIssue && targetSprint && targetTask && (
+                    <a
+                      href={getGoogleCalendarTaskUrl(targetSprint, targetTask)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[3px] bg-white border border-[#DFE1E6] hover:border-[#0052CC] text-[#0052CC] text-[11px] font-bold whitespace-nowrap transition"
+                    >
+                      <span>📅 구글 캘린더에 이 할 일 등록 ↗</span>
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedIssue(null);
+                      setShowCalendarModal(true);
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[3px] bg-[#0052CC] hover:bg-[#0065FF] text-white text-[11px] font-bold whitespace-nowrap cursor-pointer transition"
+                  >
+                    <span>📲 주간 루틴 · 전체 알림 연동</span>
+                  </button>
+                </div>
+              </div>
+
               {guide ? (
                 <div className="space-y-4 text-xs sm:text-sm">
                   {/* 1. 왜 하나요? (의미와 목적) */}
@@ -2693,6 +2752,130 @@ export default function App() {
                 className="px-4 py-1.5 rounded-[3px] bg-[#0052CC] hover:bg-[#0065FF] disabled:opacity-40 text-white text-xs font-semibold cursor-pointer"
               >
                 만들기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Calendar Notification & Routine Integration Modal */}
+      {showCalendarModal && (
+        <div
+          onClick={() => setShowCalendarModal(false)}
+          className="fixed inset-0 z-50 bg-[#091E42]/50 flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-[3px] max-w-lg w-full p-5 sm:p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between border-b border-[#DFE1E6] pb-3">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-[#0052CC]" />
+                <h3 className="text-base font-bold text-[#172B4D]">
+                  캘린더 알림 원클릭 연동 (구글 · 갤럭시 · 아이폰 · 맥)
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCalendarModal(false)}
+                className="p-1 rounded-[3px] text-[#5E6C84] hover:bg-[#EBECF0] hover:text-[#172B4D]"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Section 1: Weekly Routine (Tue/Thu 1h, Sat/Sun 2h) */}
+              <div className="p-3.5 rounded-[3px] bg-[#DEEBFF]/45 border border-[#B3D4FF] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[#0747A6] text-xs sm:text-sm">
+                    ① 주 6시간 고정 공부 루틴 + 10분 전 푸시 알림 등록
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded-[3px] bg-[#0052CC] text-white text-[10px] font-bold">
+                    필수 추천
+                  </span>
+                </div>
+                <p className="text-[#42526E] leading-relaxed">
+                  매주 <strong>화·목 밤 21:00~22:00 (1h)</strong>, <strong>토·일 오전 08:00~10:00 (2h)</strong> 반복 일정과 <strong>시작 10분 전 알림</strong>을 내 폰/PC 캘린더에 바로 등록합니다.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => downloadWeeklyRoutineIcs()}
+                  className="w-full py-2.5 px-3 rounded-[3px] bg-[#0052CC] hover:bg-[#0065FF] text-white font-bold flex items-center justify-center gap-1.5 shadow-xs cursor-pointer transition"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>📲 기본 캘린더 앱(.ics)으로 주간 반복 알림 한 번에 받기</span>
+                </button>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <a
+                    href={getGoogleCalendarRoutineUrl('weekend')}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="py-2 px-2.5 rounded-[3px] bg-white border border-[#B3D4FF] hover:border-[#0052CC] text-[#0052CC] font-semibold text-center transition"
+                  >
+                    📅 구글 캘린더: 주말(토·일 08~10시) 반복 등록 ↗
+                  </a>
+                  <a
+                    href={getGoogleCalendarRoutineUrl('weekday')}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="py-2 px-2.5 rounded-[3px] bg-white border border-[#B3D4FF] hover:border-[#0052CC] text-[#0052CC] font-semibold text-center transition"
+                  >
+                    📅 구글 캘린더: 평일(화·목 21~22시) 반복 등록 ↗
+                  </a>
+                </div>
+              </div>
+
+              {/* Section 2: Detailed Sprint Tasks Schedule (.ics) */}
+              <div className="p-3.5 rounded-[3px] bg-[#F4F5F7] border border-[#DFE1E6] space-y-2.5">
+                <div className="font-bold text-[#172B4D] text-xs sm:text-sm">
+                  ② 스프린트별 세부 과제(Task) 일정표 캘린더에 통째로 넣기
+                </div>
+                <p className="text-[#5E6C84] leading-relaxed">
+                  각 할 일의 배정 요일 슬롯(`1주 토`, `1주 화` 등)을 실제 날짜와 시간으로 자동 계산하여, <strong>오늘 어떤 과제를 해야 하는지 캘린더에서 바로 보이고 10분 전에 알림</strong>이 울리도록 `.ics` 파일을 생성합니다.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      downloadSprintsTasksIcs(
+                        [activeSprint],
+                        `ai-sprint-${activeSprint.id}-tasks.ics`
+                      )
+                    }
+                    className="py-2 px-3 rounded-[3px] bg-white border border-[#DFE1E6] hover:border-[#0052CC] text-[#172B4D] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition"
+                  >
+                    <Calendar className="w-3.5 h-3.5 text-[#0052CC]" />
+                    <span>현재 {activeSprint.title} ({activeSprint.tasks.length}개 할 일) 받기</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      downloadSprintsTasksIcs(state.sprints, 'ai-sprint-all-6months-tasks.ics')
+                    }
+                    className="py-2 px-3 rounded-[3px] bg-white border border-[#DFE1E6] hover:border-[#0052CC] text-[#172B4D] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition"
+                  >
+                    <Download className="w-3.5 h-3.5 text-[#006644]" />
+                    <span>6개월 전체 (S1~S13 · 101개) 한 번에 받기</span>
+                  </button>
+                </div>
+                <p className="text-[11px] text-[#6B778C]">
+                  💡 다운로드된 <code className="font-mono bg-white px-1 rounded">.ics</code> 파일을 스마트폰(갤럭시/아이폰)이나 맥북에서 열면 기본 캘린더 앱이나 구글 캘린더로 즉시 일정과 10분 전 알림이 일괄 추가됩니다.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setShowCalendarModal(false)}
+                className="px-4 py-1.5 rounded-[3px] bg-[#0052CC] hover:bg-[#0065FF] text-white text-xs font-semibold cursor-pointer"
+              >
+                닫기
               </button>
             </div>
           </div>
