@@ -273,7 +273,9 @@ export default function App() {
   );
 
   const isCloudConfigured = Boolean(
-    syncConfig.supabaseUrl.trim() && syncConfig.supabaseAnonKey.trim()
+    syncConfig.supabaseUrl.trim() &&
+      syncConfig.supabaseAnonKey.trim() &&
+      syncConfig.syncKey.trim()
   );
 
   // Supabase Realtime & Focus Sync
@@ -374,7 +376,11 @@ export default function App() {
       };
       saveLocalState(next);
 
-      if (syncConfig.supabaseUrl.trim() && syncConfig.supabaseAnonKey.trim()) {
+      if (
+        syncConfig.supabaseUrl.trim() &&
+        syncConfig.supabaseAnonKey.trim() &&
+        syncConfig.syncKey.trim()
+      ) {
         setSyncStatus('syncing');
         if (syncTimeoutRef.current) window.clearTimeout(syncTimeoutRef.current);
         syncTimeoutRef.current = window.setTimeout(() => {
@@ -2483,41 +2489,55 @@ export default function App() {
               </button>
             </div>
 
-            <div className="space-y-2.5 text-xs">
-              <div>
-                <label className="block font-semibold text-[#5E6C84] mb-1">Supabase URL</label>
-                <input
-                  type="url"
-                  value={syncConfig.supabaseUrl}
-                  onChange={(e) =>
-                    setSyncConfig((prev) => ({ ...prev, supabaseUrl: e.target.value }))
-                  }
-                  className="w-full px-2.5 py-1.5 rounded-[3px] border border-[#DFE1E6] outline-none focus:border-[#0052CC]"
-                />
-              </div>
-              <div>
-                <label className="block font-semibold text-[#5E6C84] mb-1">Anon Key</label>
+            <div className="space-y-3 text-xs">
+              <div className="p-2.5 rounded-[3px] bg-[#DEEBFF]/60 border border-[#B3D4FF] text-[#172B4D] space-y-1">
+                <label className="block font-bold text-[#0052CC]">
+                  🔑 나만의 동기화 비밀키 (Sync Key · 필수)
+                </label>
+                <p className="text-[11px] text-[#42526E] leading-relaxed">
+                  외부인이 내 데이터를 덮어쓰지 못하도록, 본인만 아는 비밀키(예: <code className="font-mono bg-white px-1 rounded">yohan-비밀숫자</code>)를 정해 PC와 모바일에 똑같이 입력해 주세요.
+                </p>
                 <input
                   type="password"
-                  placeholder="eyJhbGci..."
-                  value={syncConfig.supabaseAnonKey}
-                  onChange={(e) =>
-                    setSyncConfig((prev) => ({ ...prev, supabaseAnonKey: e.target.value }))
-                  }
-                  className="w-full px-2.5 py-1.5 rounded-[3px] border border-[#DFE1E6] outline-none focus:border-[#0052CC]"
-                />
-              </div>
-              <div>
-                <label className="block font-semibold text-[#5E6C84] mb-1">동기화 키</label>
-                <input
-                  type="text"
+                  placeholder="나만의 비밀 동기화 키 입력 (예: yohan-7777)"
                   value={syncConfig.syncKey}
                   onChange={(e) =>
                     setSyncConfig((prev) => ({ ...prev, syncKey: e.target.value }))
                   }
-                  className="w-full px-2.5 py-1.5 rounded-[3px] border border-[#DFE1E6] font-mono outline-none focus:border-[#0052CC]"
+                  className="w-full mt-1 px-2.5 py-2 rounded-[3px] bg-white border border-[#0052CC] font-mono text-xs outline-none"
                 />
               </div>
+
+              <details className="group border border-[#DFE1E6] rounded-[3px] px-2.5 py-2 bg-[#FAFBFC]">
+                <summary className="cursor-pointer text-[11px] font-semibold text-[#5E6C84] select-none">
+                  고급 설정 (Supabase URL & Anon Key · 자동 내장됨)
+                </summary>
+                <div className="space-y-2 pt-2.5">
+                  <div>
+                    <label className="block font-semibold text-[#5E6C84] mb-1">Supabase URL</label>
+                    <input
+                      type="url"
+                      value={syncConfig.supabaseUrl}
+                      onChange={(e) =>
+                        setSyncConfig((prev) => ({ ...prev, supabaseUrl: e.target.value }))
+                      }
+                      className="w-full px-2.5 py-1.5 rounded-[3px] bg-white border border-[#DFE1E6] outline-none focus:border-[#0052CC]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-[#5E6C84] mb-1">Anon Key</label>
+                    <input
+                      type="password"
+                      placeholder="eyJhbGci..."
+                      value={syncConfig.supabaseAnonKey}
+                      onChange={(e) =>
+                        setSyncConfig((prev) => ({ ...prev, supabaseAnonKey: e.target.value }))
+                      }
+                      className="w-full px-2.5 py-1.5 rounded-[3px] bg-white border border-[#DFE1E6] outline-none focus:border-[#0052CC]"
+                    />
+                  </div>
+                </div>
+              </details>
             </div>
 
             <div className="flex gap-2">

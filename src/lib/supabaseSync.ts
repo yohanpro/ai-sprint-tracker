@@ -7,24 +7,27 @@ const LOCAL_STORAGE_CONFIG_KEY = 'ai_sprint_tracker_supabase_config_v1';
 export interface SyncConfig {
   supabaseUrl: string;
   supabaseAnonKey: string;
-  syncKey: string; // 개인 구분 키 (기본값: yohan-ai-sprint-2026)
+  syncKey: string; // 나만의 동기화 비밀키 (비어 있으면 로컬 모드로만 동작)
 }
+
+const PUBLIC_DEFAULT_KEYS = new Set(['default-user', 'yohan-ai-sprint-2026']);
 
 export function getSyncConfig(): SyncConfig {
   const envUrl = import.meta.env.VITE_SUPABASE_URL || 'https://cqqzfshofwmhehklideq.supabase.co';
   const envKey =
     import.meta.env.VITE_SUPABASE_ANON_KEY ||
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxcXpmc2hvZndtaGVoa2xpZGVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2OTUyOTYsImV4cCI6MjEwODI3MTI5Nn0.-GElXOZcFJF8Y6IYdTH0swl4gQT3TW3PezAu0_-W4a8';
-  const envSyncKey = import.meta.env.VITE_SYNC_KEY || 'yohan-ai-sprint-2026';
+  const envSyncKey = import.meta.env.VITE_SYNC_KEY || '';
 
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_CONFIG_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<SyncConfig>;
+      const savedSyncKey = parsed.syncKey?.trim() || '';
       return {
         supabaseUrl: parsed.supabaseUrl?.trim() || envUrl,
         supabaseAnonKey: parsed.supabaseAnonKey?.trim() || envKey,
-        syncKey: parsed.syncKey?.trim() || envSyncKey,
+        syncKey: PUBLIC_DEFAULT_KEYS.has(savedSyncKey) ? '' : savedSyncKey || envSyncKey,
       };
     }
   } catch {
@@ -84,10 +87,14 @@ export async function pushStateToCloud(
   if (!client) {
     return { ok: false, error: 'Supabase URL과 Anon Key가 설정되지 않았습니다.' };
   }
+  const targetKey = config.syncKey.trim();
+  if (!targetKey) {
+    return { ok: false, error: '나만의 동기화 비밀키(Sync Key)를 입력해 주세요.' };
+  }
 
   const { error } = await client.from('sprint_tracker_state').upsert(
     {
-      sync_key: config.syncKey.trim() || 'yohan-ai-sprint-2026',
+      sync_key: targetKey,
       payload: state,
       updated_at: state.updatedAt,
     },
@@ -107,11 +114,15 @@ export async function pullStateFromCloud(
   if (!client) {
     return { ok: false, error: 'Supabase URL과 Anon Key가 설정되지 않았습니다.' };
   }
+  const targetKey = config.syncKey.trim();
+  if (!targetKey) {
+    return { ok: false, error: '나만의 동기화 비밀키(Sync Key)를 입력해 주세요.' };
+  }
 
   const { data, error } = await client
     .from('sprint_tracker_state')
     .select('payload, updated_at')
-    .eq('sync_key', config.syncKey.trim() || 'yohan-ai-sprint-2026')
+    .eq('sync_key', targetKey)
     .maybeSingle();
 
   if (error) {
@@ -128,9 +139,8 @@ export function subscribeToCloudChanges(
   onRemoteState: (remoteState: AppState) => void
 ): (() => void) | null {
   const client = getSupabaseClient(config);
-  if (!client) return null;
-
-  const targetKey = config.syncKey.trim() || 'yohan-ai-sprint-2026';
+  const targetKey = config.syncKey.trim();
+  if (!client || !targetKey) return null;
   const channel: RealtimeChannel = client
     .channel(`sprint-sync-${targetKey}`)
     .on(
