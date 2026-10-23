@@ -12,7 +12,9 @@ export interface SyncConfig {
 
 export function getSyncConfig(): SyncConfig {
   const envUrl = import.meta.env.VITE_SUPABASE_URL || 'https://cqqzfshofwmhehklideq.supabase.co';
-  const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+  const envKey =
+    import.meta.env.VITE_SUPABASE_ANON_KEY ||
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxcXpmc2hvZndtaGVoa2xpZGVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2OTUyOTYsImV4cCI6MjEwODI3MTI5Nn0.-GElXOZcFJF8Y6IYdTH0swl4gQT3TW3PezAu0_-W4a8';
   const envSyncKey = import.meta.env.VITE_SYNC_KEY || 'yohan-ai-sprint-2026';
 
   try {
