@@ -267,6 +267,39 @@ export default function App() {
     if (!isCloudConfigured) return;
     let cancelled = false;
 
+    const mergePreserveNotes = (base: AppState, other: AppState): AppState => {
+      return {
+        ...base,
+        dDayChecklist: base.dDayChecklist.map((item) => {
+          const otherItem = other.dDayChecklist.find((d) => d.id === item.id);
+          const mergedNote =
+            item.note && item.note.trim()
+              ? item.note
+              : otherItem?.note && otherItem.note.trim()
+              ? otherItem.note
+              : item.note;
+          return mergedNote !== item.note ? { ...item, note: mergedNote } : item;
+        }),
+        sprints: base.sprints.map((sp) => {
+          const otherSp = other.sprints.find((s) => s.id === sp.id);
+          if (!otherSp) return sp;
+          return {
+            ...sp,
+            tasks: sp.tasks.map((t) => {
+              const otherTask = otherSp.tasks.find((ot) => ot.id === t.id);
+              const mergedNote =
+                t.note && t.note.trim()
+                  ? t.note
+                  : otherTask?.note && otherTask.note.trim()
+                  ? otherTask.note
+                  : t.note;
+              return mergedNote !== t.note ? { ...t, note: mergedNote } : t;
+            }),
+          };
+        }),
+      };
+    };
+
     const syncFromRemote = () => {
       setSyncStatus('syncing');
       pullStateFromCloud(syncConfig).then((res) => {
@@ -275,11 +308,11 @@ export default function App() {
           setState((prev) => {
             const localTime = new Date(prev.updatedAt || 0).getTime();
             const remoteTime = new Date(res.state!.updatedAt || 0).getTime();
-            if (remoteTime > localTime) {
-              saveLocalState(res.state!);
-              return res.state!;
-            }
-            return prev;
+            const winner = remoteTime >= localTime ? res.state! : prev;
+            const loser = remoteTime >= localTime ? prev : res.state!;
+            const merged = mergePreserveNotes(winner, loser);
+            saveLocalState(merged);
+            return merged;
           });
           setSyncStatus('synced');
         } else if (!res.ok) {
@@ -295,14 +328,11 @@ export default function App() {
     const unsubscribe = subscribeToCloudChanges(syncConfig, (remoteState) => {
       if (cancelled) return;
       setState((prev) => {
-        const localTime = new Date(prev.updatedAt || 0).getTime();
-        const remoteTime = new Date(remoteState.updatedAt || 0).getTime();
-        if (remoteTime > localTime) {
-          saveLocalState(remoteState);
-          setSyncStatus('synced');
-          return remoteState;
-        }
-        return prev;
+        if (remoteState.updatedAt === prev.updatedAt) return prev;
+        const merged = mergePreserveNotes(remoteState, prev);
+        saveLocalState(merged);
+        setSyncStatus('synced');
+        return merged;
       });
     });
 
@@ -2269,7 +2299,13 @@ export default function App() {
               <button
                 onClick={async () => {
                   saveSyncConfig(syncConfig);
-                  const res = await pushStateToCloud(state, syncConfig);
+                  const freshState: AppState = {
+                    ...state,
+                    updatedAt: new Date().toISOString(),
+                  };
+                  setState(freshState);
+                  saveLocalState(freshState);
+                  const res = await pushStateToCloud(freshState, syncConfig);
                   if (res.ok) {
                     setSyncStatus('synced');
                     setShowSettingsModal(false);
