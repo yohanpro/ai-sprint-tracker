@@ -37,7 +37,51 @@ import {
   SyncConfig,
 } from './lib/supabaseSync';
 
-type JiraMenu = 'board' | 'backlog';
+type JiraMenu = 'board' | 'backlog' | 'roadmap';
+
+const PHASE_META: Record<
+  1 | 2 | 3 | 4,
+  {
+    title: string;
+    period: string;
+    summary: string;
+    badgeClass: string;
+    barClass: string;
+  }
+> = {
+  1: {
+    title: 'Phase 1 · LLM 기본기 (S1 – S3)',
+    period: '10/24 – 12/4 (6주)',
+    summary:
+      '스트리밍 챗봇, Tool Use(함수 호출), Zod 구조화 출력을 익히고 첫 공개 데모와 블로그 1편(M1)을 완성합니다.',
+    badgeClass: 'bg-[#DEEBFF] text-[#0747A6]',
+    barClass: 'bg-[#0052CC]',
+  },
+  2: {
+    title: 'Phase 2 · RAG 파이프라인 (S4 – S6)',
+    period: '12/5 – 1/15 (6주)',
+    summary:
+      '문서 임베딩·pgvector 검색과 근거 하이라이트 UI를 구현하고, 20문항 Eval 셋으로 적중률 개선을 숫자로 증명(M2)합니다.',
+    badgeClass: 'bg-[#EAE6FF] text-[#403294]',
+    barClass: 'bg-[#6554C0]',
+  },
+  3: {
+    title: 'Phase 3 · 에이전트 · 평가 · 사내 제안 (S7 – S9)',
+    period: '1/16 – 2/26 (6주)',
+    summary:
+      '다단계 멀티툴 에이전트와 자동 채점(LLM-as-Judge)·비용 대시보드를 만들고, 3개월 체크포인트(★) 및 사내 AI 제안서(M3)를 제출합니다.',
+    badgeClass: 'bg-[#FFFAE6] text-[#974F0C]',
+    barClass: 'bg-[#FF991F]',
+  },
+  4: {
+    title: 'Phase 4 · 실전 · 대학원 · 포트폴리오 (S10 – S13)',
+    period: '2/27 – 4/23 (8주)',
+    summary:
+      '사내 PoC(또는 통합 앱)와 야간 AI 대학원 원서 접수를 마무리하고, 포트폴리오 사이트와 AI 이력서 v1(M4)을 완성합니다.',
+    badgeClass: 'bg-[#E3FCEF] text-[#006644]',
+    barClass: 'bg-[#00875A]',
+  },
+};
 
 const STATUS_META: Record<
   IssueStatus,
@@ -601,7 +645,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* 2 Jira Scrum Menus: 활성 스프린트 / 백로그 */}
+          {/* 3 Jira Scrum Menus: 활성 스프린트 / 백로그 / 빅픽처 */}
           <nav className="flex items-center gap-1">
             <button
               onClick={() => setActiveMenu('board')}
@@ -626,6 +670,19 @@ export default function App() {
             >
               백로그
               {activeMenu === 'backlog' && (
+                <span className="absolute bottom-0 inset-x-0 h-[2px] bg-[#0052CC]" />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveMenu('roadmap')}
+              className={`px-3 py-1.5 rounded-[3px] text-sm font-medium transition relative ${
+                activeMenu === 'roadmap'
+                  ? 'text-[#0052CC] bg-[#DEEBFF]/60'
+                  : 'text-[#42526E] hover:bg-[#F4F5F7]'
+              }`}
+            >
+              빅픽처
+              {activeMenu === 'roadmap' && (
                 <span className="absolute bottom-0 inset-x-0 h-[2px] bg-[#0052CC]" />
               )}
             </button>
@@ -1302,63 +1359,442 @@ export default function App() {
               </div>
             );
           })}
-
-          {/* Compact Milestones & 3-Month Checkpoint in Backlog Footer */}
-          <div className="bg-[#F4F5F7] rounded-[3px] border border-[#DFE1E6] p-3 space-y-2">
-            <div className="flex items-center justify-between text-xs font-bold text-[#172B4D]">
-              <span>마일스톤 (M1 – M4) & ★ 3개월 체크포인트</span>
-              <span className="text-[#5E6C84] font-normal">
-                S1–S6 평균 재미: {s1ToS6Stats.avgFun ?? '-'}/5 · 주당 평균: {s1ToS6Stats.avgWeeklyHours}h
-              </span>
-            </div>
-            <div className="bg-white rounded-[3px] border border-[#DFE1E6] divide-y divide-[#DFE1E6] text-xs">
-              {state.milestones.map((m) => (
-                <div
-                  key={m.id}
-                  className="px-3 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
-                >
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={m.done}
-                      onChange={() =>
-                        updateAppState((prev) => ({
-                          ...prev,
-                          milestones: prev.milestones.map((item) =>
-                            item.id === m.id ? { ...item, done: !item.done } : item
-                          ),
-                        }))
-                      }
-                      className="w-3.5 h-3.5 accent-[#0052CC]"
-                    />
-                    <span className="px-1.5 py-0.5 rounded-[3px] bg-[#DEEBFF] text-[#0747A6] font-bold text-[11px]">
-                      {m.code}
-                    </span>
-                    <span className={m.done ? 'line-through text-[#6B778C]' : 'font-medium'}>
-                      {m.title}
-                    </span>
-                    <span className="text-[#5E6C84]">({m.timing})</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="증빙 URL / 메모"
-                    value={m.evidenceUrl}
-                    onChange={(e) =>
-                      updateAppState((prev) => ({
-                        ...prev,
-                        milestones: prev.milestones.map((item) =>
-                          item.id === m.id ? { ...item, evidenceUrl: e.target.value } : item
-                        ),
-                      }))
-                    }
-                    className="sm:w-56 px-2 py-1 border border-[#DFE1E6] rounded-[3px] text-xs outline-none focus:border-[#0052CC]"
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       )}
+
+      {/* MENU 3: BIG PICTURE / ROADMAP (빅픽처: 6개월 전체 타임라인 · 마일스톤 · 병행 트랙) */}
+      {activeMenu === 'roadmap' && (() => {
+        const allTasks = state.sprints.flatMap((s) => s.tasks);
+        const totalTaskCount = allTasks.length;
+        const doneTaskCount = allTasks.filter((t) => getTaskStatus(t) === 'done').length;
+        const inProgressTaskCount = allTasks.filter(
+          (t) => getTaskStatus(t) === 'in_progress'
+        ).length;
+        const overallPct =
+          totalTaskCount > 0 ? Math.round((doneTaskCount / totalTaskCount) * 100) : 0;
+
+        const totalDoneH =
+          Math.round(
+            state.sprints.reduce((sum, s) => sum + getSprintHourBreakdown(s).doneH, 0) * 10
+          ) / 10;
+        const totalTargetH = state.sprints.reduce(
+          (sum, s) => sum + getEffectiveTargetHours(s),
+          0
+        );
+        const completedSprintsCount = state.sprints.filter(
+          (s) => s.retro.goalAchieved === true
+        ).length;
+
+        return (
+          <div className="flex-1 max-w-7xl w-full mx-auto px-4 py-5 space-y-5">
+            {/* BigPicture Header & 6-Month Summary */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-[#DFE1E6]">
+              <div className="space-y-1">
+                <div className="text-xs text-[#5E6C84]">
+                  Projects / AI 전환 6개월 / 빅픽처 (BigPicture Roadmap)
+                </div>
+                <h1 className="text-lg sm:text-xl font-semibold text-[#172B4D]">
+                  6개월 전체 로드맵 (Phase 1 – 4 · S1 – S13)
+                </h1>
+                <p className="text-xs text-[#5E6C84]">
+                  26주 동안 프론트엔드 개발자에서 AI 엔지니어로 전환하는 전체 여정과 현재 위치를 한눈에 확인하세요. 스프린트를 클릭하면 해당 보드로 이동합니다.
+                </p>
+              </div>
+
+              {/* Overall KPI Badges */}
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <div className="px-3 py-1.5 rounded-[3px] bg-[#F4F5F7] border border-[#DFE1E6]">
+                  <span className="text-[#5E6C84] mr-1.5">전체 진행률</span>
+                  <span className="font-bold text-[#0052CC]">
+                    {overallPct}% ({doneTaskCount}/{totalTaskCount})
+                  </span>
+                </div>
+                <div className="px-3 py-1.5 rounded-[3px] bg-[#F4F5F7] border border-[#DFE1E6]">
+                  <span className="text-[#5E6C84] mr-1.5">누적 투입</span>
+                  <span className="font-bold text-[#006644]">
+                    {totalDoneH}h / {totalTargetH}h
+                  </span>
+                </div>
+                <div className="px-3 py-1.5 rounded-[3px] bg-[#F4F5F7] border border-[#DFE1E6]">
+                  <span className="text-[#5E6C84] mr-1.5">완료 스프린트</span>
+                  <span className="font-bold text-[#172B4D]">{completedSprintsCount} / 13</span>
+                </div>
+                <div className="px-3 py-1.5 rounded-[3px] bg-[#F4F5F7] border border-[#DFE1E6]">
+                  <span className="text-[#5E6C84] mr-1.5">S1–S6 재미·시간</span>
+                  <span className="font-bold text-[#172B4D]">
+                    {s1ToS6Stats.avgFun ?? '-'}/5 · 주 {s1ToS6Stats.avgWeeklyHours}h
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Overall 6-Month Progress Bar */}
+            <div className="bg-[#F4F5F7] rounded-[3px] p-3 border border-[#DFE1E6] space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-[#172B4D]">
+                  6개월 전체 이슈 진행 상태 (10월 24일 – 4월 23일)
+                </span>
+                <span className="text-[#5E6C84]">
+                  완료 {doneTaskCount}개 · 진행 중 {inProgressTaskCount}개 · 남은 할 일{' '}
+                  {totalTaskCount - doneTaskCount - inProgressTaskCount}개
+                </span>
+              </div>
+              <div className="w-full h-2.5 bg-[#DFE1E6] rounded-full overflow-hidden flex">
+                <div
+                  style={{ width: `${overallPct}%` }}
+                  className="bg-[#006644] transition-all"
+                />
+                <div
+                  style={{
+                    width: `${
+                      totalTaskCount > 0
+                        ? Math.round((inProgressTaskCount / totalTaskCount) * 100)
+                        : 0
+                    }%`,
+                  }}
+                  className="bg-[#0052CC] transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Jira BigPicture Gantt / Timeline Table */}
+            <div className="bg-white rounded-[3px] border border-[#DFE1E6] overflow-hidden">
+              {/* Desktop Timeline Column Header */}
+              <div className="hidden lg:grid lg:grid-cols-12 bg-[#F4F5F7] border-b border-[#DFE1E6] text-[11px] font-bold text-[#5E6C84]">
+                <div className="col-span-5 px-3 py-2 border-r border-[#DFE1E6]">
+                  단계 (Phase) / 스프린트 목표 및 완료 기준
+                </div>
+                <div className="col-span-7 grid grid-cols-13">
+                  {state.sprints.map((s) => {
+                    const isCurrent = s.id === activeSprintId;
+                    return (
+                      <div
+                        key={s.id}
+                        className={`py-2 text-center border-r last:border-r-0 border-[#DFE1E6] ${
+                          isCurrent ? 'bg-[#DEEBFF] text-[#0052CC]' : ''
+                        }`}
+                      >
+                        <div>S{s.id}</div>
+                        <div className="text-[9px] font-normal">
+                          {s.period.split(' ')[0]}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Phase 1 ~ 4 Sections */}
+              {([1, 2, 3, 4] as const).map((phaseNum) => {
+                const phaseInfo = PHASE_META[phaseNum];
+                const phaseSprints = state.sprints.filter((s) => s.phase === phaseNum);
+                const phaseTasks = phaseSprints.flatMap((s) => s.tasks);
+                const phaseDone = phaseTasks.filter((t) => getTaskStatus(t) === 'done').length;
+                const phasePct =
+                  phaseTasks.length > 0 ? Math.round((phaseDone / phaseTasks.length) * 100) : 0;
+
+                return (
+                  <div key={phaseNum} className="border-b last:border-b-0 border-[#DFE1E6]">
+                    {/* Phase Epic Header Row */}
+                    <div className="bg-[#FAFBFC] px-3 py-2.5 border-b border-[#DFE1E6] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="space-y-0.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className={`px-2 py-0.5 rounded-[3px] text-xs font-bold ${phaseInfo.badgeClass}`}
+                          >
+                            {phaseInfo.title}
+                          </span>
+                          <span className="text-xs text-[#5E6C84] font-medium">
+                            {phaseInfo.period}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[#42526E]">{phaseInfo.summary}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 text-xs">
+                        <div className="w-24 h-2 bg-[#DFE1E6] rounded-full overflow-hidden">
+                          <div
+                            style={{ width: `${phasePct}%` }}
+                            className={`h-full ${phaseInfo.barClass}`}
+                          />
+                        </div>
+                        <span className="font-bold text-[#172B4D] w-9 text-right">
+                          {phasePct}%
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Sprints inside this Phase */}
+                    <div className="divide-y divide-[#DFE1E6]">
+                      {phaseSprints.map((sp) => {
+                        const spDone = sp.tasks.filter((t) => getTaskStatus(t) === 'done').length;
+                        const spTotal = sp.tasks.length;
+                        const spPct = spTotal > 0 ? Math.round((spDone / spTotal) * 100) : 0;
+                        const isCurrent = sp.id === activeSprintId;
+                        const hours = getSprintHourBreakdown(sp);
+                        const targetH = getEffectiveTargetHours(sp);
+
+                        return (
+                          <div
+                            key={sp.id}
+                            onClick={() => {
+                              setActiveSprintId(sp.id);
+                              setActiveMenu('board');
+                            }}
+                            className={`grid grid-cols-1 lg:grid-cols-12 hover:bg-[#F4F5F7] transition cursor-pointer ${
+                              isCurrent ? 'bg-[#DEEBFF]/20' : ''
+                            }`}
+                          >
+                            {/* Left Column: Sprint Title, Goal, DoD */}
+                            <div className="lg:col-span-5 px-3 py-2.5 lg:border-r border-[#DFE1E6] space-y-1">
+                              <div className="flex flex-wrap items-center justify-between gap-1.5">
+                                <div className="flex items-center gap-1.5">
+                                  <span
+                                    className={`text-xs font-bold ${
+                                      isCurrent ? 'text-[#0052CC]' : 'text-[#172B4D]'
+                                    }`}
+                                  >
+                                    {sp.title}
+                                  </span>
+                                  <span className="text-[11px] text-[#5E6C84]">({sp.period})</span>
+                                  {isCurrent && (
+                                    <span className="px-1.5 py-0.5 rounded-[3px] bg-[#0052CC] text-white text-[10px] font-bold">
+                                      현재 보드
+                                    </span>
+                                  )}
+                                  {sp.milestoneTag && (
+                                    <span className="px-1.5 py-0.5 rounded-[3px] bg-[#FFFAE6] text-[#974F0C] border border-[#FFE380] text-[10px] font-bold">
+                                      {sp.milestoneTag}
+                                    </span>
+                                  )}
+                                  {sp.retro.goalAchieved === true && (
+                                    <span className="px-1.5 py-0.5 rounded-[3px] bg-[#E3FCEF] text-[#006644] text-[10px] font-bold">
+                                      완료
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[11px] font-semibold text-[#5E6C84]">
+                                  {hours.doneH}/{targetH}h · {spPct}%
+                                </span>
+                              </div>
+
+                              <div className="text-xs font-semibold text-[#172B4D]">
+                                {sp.goal}
+                              </div>
+                              <div className="text-[11px] text-[#5E6C84] line-clamp-1">
+                                완료 기준: {sp.dod}
+                              </div>
+
+                              {/* Mobile progress bar */}
+                              <div className="lg:hidden pt-1">
+                                <div className="w-full h-1.5 bg-[#DFE1E6] rounded-full overflow-hidden">
+                                  <div
+                                    style={{ width: `${spPct}%` }}
+                                    className={`h-full ${phaseInfo.barClass}`}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Right Column (Desktop): 13-Sprint Gantt Bar Grid */}
+                            <div className="hidden lg:grid lg:col-span-7 grid-cols-13 items-center relative">
+                              {state.sprints.map((colSp) => {
+                                const isActiveCell = colSp.id === sp.id;
+                                const isCurrentCol = colSp.id === activeSprintId;
+                                return (
+                                  <div
+                                    key={colSp.id}
+                                    className={`h-full flex items-center px-1 border-r last:border-r-0 border-[#F4F5F7] ${
+                                      isCurrentCol ? 'bg-[#DEEBFF]/25' : ''
+                                    }`}
+                                  >
+                                    {isActiveCell && (
+                                      <div
+                                        className="w-full h-6 rounded-[3px] bg-[#DFE1E6] overflow-hidden relative flex items-center justify-center shadow-xs"
+                                        title={`${sp.title}: ${spDone}/${spTotal} 완료 (${spPct}%)`}
+                                      >
+                                        <div
+                                          style={{ width: `${spPct}%` }}
+                                          className={`absolute inset-y-0 left-0 ${phaseInfo.barClass} opacity-85`}
+                                        />
+                                        <span
+                                          className={`relative z-10 text-[10px] font-bold ${
+                                            spPct >= 50 ? 'text-white' : 'text-[#172B4D]'
+                                          }`}
+                                        >
+                                          {spPct}%
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Bottom Grid: 1) Milestones (M1~M4 & Checkpoint) + 2) Parallel Track & Final Deliverables */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Card 1: Milestones (M1 - M4 & 3-Month Checkpoint) */}
+              <div className="bg-[#F4F5F7] rounded-[3px] border border-[#DFE1E6] p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xs font-bold text-[#172B4D]">
+                    핵심 마일스톤 (M1 – M4) & ★ 3개월 체크포인트
+                  </h2>
+                  <span className="text-[11px] text-[#5E6C84]">
+                    달성 {state.milestones.filter((m) => m.done).length} / {state.milestones.length}
+                  </span>
+                </div>
+                <div className="bg-white rounded-[3px] border border-[#DFE1E6] divide-y divide-[#DFE1E6] text-xs">
+                  {state.milestones.map((m) => (
+                    <div key={m.id} className="p-2.5 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={m.done}
+                            onChange={() =>
+                              updateAppState((prev) => ({
+                                ...prev,
+                                milestones: prev.milestones.map((item) =>
+                                  item.id === m.id ? { ...item, done: !item.done } : item
+                                ),
+                              }))
+                            }
+                            className="w-3.5 h-3.5 accent-[#0052CC]"
+                          />
+                          <span className="px-1.5 py-0.5 rounded-[3px] bg-[#DEEBFF] text-[#0747A6] font-bold text-[11px]">
+                            {m.code}
+                          </span>
+                          <span
+                            className={
+                              m.done ? 'line-through text-[#6B778C]' : 'font-semibold text-[#172B4D]'
+                            }
+                          >
+                            {m.title}
+                          </span>
+                        </label>
+                        <span className="text-[11px] text-[#5E6C84] shrink-0">{m.timing}</span>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder={`증빙 URL / 메모 (${m.evidenceDesc})`}
+                        value={m.evidenceUrl}
+                        onChange={(e) =>
+                          updateAppState((prev) => ({
+                            ...prev,
+                            milestones: prev.milestones.map((item) =>
+                              item.id === m.id ? { ...item, evidenceUrl: e.target.value } : item
+                            ),
+                          }))
+                        }
+                        className="w-full px-2 py-1 border border-[#DFE1E6] rounded-[3px] text-xs outline-none focus:border-[#0052CC]"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Card 2: 6-Month Final Deliverables & Parallel Study Track */}
+              <div className="space-y-4">
+                {/* 6-Month Final Deliverables (5 items) */}
+                <div className="bg-[#F4F5F7] rounded-[3px] border border-[#DFE1E6] p-3.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xs font-bold text-[#172B4D]">
+                      6개월 완료 기준 (최종 산출물 5가지)
+                    </h2>
+                    <span className="text-[11px] text-[#5E6C84]">
+                      완료 {state.finalChecklist.filter((f) => f.done).length} /{' '}
+                      {state.finalChecklist.length}
+                    </span>
+                  </div>
+                  <div className="bg-white rounded-[3px] border border-[#DFE1E6] divide-y divide-[#DFE1E6] text-xs">
+                    {state.finalChecklist.map((fc) => (
+                      <label
+                        key={fc.id}
+                        className="px-3 py-2 flex items-center gap-2.5 cursor-pointer hover:bg-[#F4F5F7]"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={fc.done}
+                          onChange={() =>
+                            updateAppState((prev) => ({
+                              ...prev,
+                              finalChecklist: prev.finalChecklist.map((item) =>
+                                item.id === fc.id ? { ...item, done: !item.done } : item
+                              ),
+                            }))
+                          }
+                          className="w-3.5 h-3.5 accent-[#0052CC]"
+                        />
+                        <span
+                          className={
+                            fc.done ? 'line-through text-[#6B778C]' : 'font-medium text-[#172B4D]'
+                          }
+                        >
+                          {fc.title}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Parallel Track (혼공머신 + 3Blue1Brown) */}
+                <div className="bg-[#F4F5F7] rounded-[3px] border border-[#DFE1E6] p-3.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xs font-bold text-[#172B4D]">
+                      병행 학습 트랙 (혼공머신 개정판 & 3Blue1Brown 선형대수)
+                    </h2>
+                    <span className="text-[11px] text-[#5E6C84]">
+                      완료 {state.parallelTrack.filter((p) => p.done).length} /{' '}
+                      {state.parallelTrack.length}
+                    </span>
+                  </div>
+                  <div className="bg-white rounded-[3px] border border-[#DFE1E6] divide-y divide-[#DFE1E6] text-xs">
+                    {state.parallelTrack.map((pt) => (
+                      <label
+                        key={pt.id}
+                        className="px-3 py-2 flex items-center justify-between gap-2 cursor-pointer hover:bg-[#F4F5F7]"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={pt.done}
+                            onChange={() =>
+                              updateAppState((prev) => ({
+                                ...prev,
+                                parallelTrack: prev.parallelTrack.map((item) =>
+                                  item.id === pt.id ? { ...item, done: !item.done } : item
+                                ),
+                              }))
+                            }
+                            className="w-3.5 h-3.5 accent-[#0052CC] shrink-0"
+                          />
+                          <span
+                            className={`truncate ${
+                              pt.done ? 'line-through text-[#6B778C]' : 'font-medium text-[#172B4D]'
+                            }`}
+                          >
+                            {pt.title}
+                          </span>
+                        </div>
+                        <span className="px-1.5 py-0.5 rounded-[3px] bg-[#F4F5F7] text-[#5E6C84] text-[11px] shrink-0">
+                          {pt.targetPeriod}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Jira Issue Detail Modal (할 일 상세 가이드 & 내 메모 기록 모달) */}
       {selectedIssue && (() => {
