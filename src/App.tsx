@@ -1134,6 +1134,69 @@ export default function App() {
               );
             })}
           </div>
+
+          {/* Phase 1~2 (S1~S4) 출퇴근 보너스: 3Blue1Brown 선형대수 체크박스 & 유튜브 바로가기 */}
+          {activeSprint.id <= 4 && (
+            <div className="bg-[#F8F9FA] rounded-[3px] border border-[#DFE1E6] p-3.5 sm:p-4 space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-[3px] bg-[#EAE6FF] text-[#403294] text-[11px] font-bold">
+                    출퇴근·산책 틈틈이 보너스 (주 6h 외 자투리)
+                  </span>
+                  <h2 className="text-xs sm:text-sm font-bold text-[#172B4D]">
+                    3Blue1Brown 『선형대수의 본질』 — Sprint 4(임베딩·벡터 검색) 시작 전 필수 3파트
+                  </h2>
+                </div>
+                <a
+                  href="https://www.youtube.com/playlist?list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs font-semibold text-[#0052CC] hover:underline"
+                >
+                  유튜브 재생목록 열기 (한국어 자막) ↗
+                </a>
+              </div>
+              <p className="text-xs text-[#5E6C84]">
+                책상 앞 코딩 시간(주 6시간)을 쓰지 말고, 1~2개월 차(Sprint 1~3) 출퇴근길이나 산책할 때 눈으로만 편하게 보세요. Sprint 4에서 텍스트 임베딩과 코사인 유사도를 다룰 때 “아, 이게 그 화살표(벡터)와 내적이구나!” 하고 바로 연결됩니다.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                {state.parallelTrack
+                  .filter((pt) => pt.category === '3b1b')
+                  .map((pt) => (
+                    <label
+                      key={pt.id}
+                      className="bg-white rounded-[3px] border border-[#DFE1E6] px-3 py-2 flex items-start gap-2.5 cursor-pointer hover:bg-[#F4F5F7] text-xs"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={pt.done}
+                        onChange={() =>
+                          updateAppState((prev) => ({
+                            ...prev,
+                            parallelTrack: prev.parallelTrack.map((item) =>
+                              item.id === pt.id ? { ...item, done: !item.done } : item
+                            ),
+                          }))
+                        }
+                        className="w-3.5 h-3.5 mt-0.5 accent-[#0052CC] shrink-0"
+                      />
+                      <div className="min-w-0 flex-1 space-y-0.5">
+                        <div
+                          className={`font-medium leading-snug ${
+                            pt.done ? 'line-through text-[#6B778C]' : 'text-[#172B4D]'
+                          }`}
+                        >
+                          {pt.title}
+                        </div>
+                        <span className="inline-block px-1.5 py-0.5 rounded-[3px] bg-[#F4F5F7] text-[#5E6C84] text-[10px] font-semibold">
+                          {pt.targetPeriod}
+                        </span>
+                      </div>
+                    </label>
+                  ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1838,14 +1901,24 @@ export default function App() {
 
                 {/* Parallel Track (혼공머신 + 3Blue1Brown) */}
                 <div className="bg-[#F4F5F7] rounded-[3px] border border-[#DFE1E6] p-3.5 space-y-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <h2 className="text-xs font-bold text-[#172B4D]">
                       병행 학습 트랙 (혼공머신 개정판 & 3Blue1Brown 선형대수)
                     </h2>
-                    <span className="text-[11px] text-[#5E6C84]">
-                      완료 {state.parallelTrack.filter((p) => p.done).length} /{' '}
-                      {state.parallelTrack.length}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href="https://www.youtube.com/playlist?list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] font-semibold text-[#0052CC] hover:underline"
+                      >
+                        3B1B 유튜브 ↗
+                      </a>
+                      <span className="text-[11px] text-[#5E6C84]">
+                        완료 {state.parallelTrack.filter((p) => p.done).length} /{' '}
+                        {state.parallelTrack.length}
+                      </span>
+                    </div>
                   </div>
                   <div className="bg-white rounded-[3px] border border-[#DFE1E6] divide-y divide-[#DFE1E6] text-xs">
                     {state.parallelTrack.map((pt) => (
