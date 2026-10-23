@@ -630,26 +630,26 @@ export default function App() {
   const activeTargetH = getEffectiveTargetHours(activeSprint);
 
   return (
-    <div className="min-h-screen flex flex-col bg-white text-[#172B4D]">
+    <div className="min-h-screen flex flex-col bg-white text-[#172B4D] overflow-x-hidden">
       {/* Jira Top Global Bar */}
-      <header className="sticky top-0 z-30 h-14 bg-white border-b border-[#DFE1E6] px-4 flex items-center justify-between">
-        <div className="flex items-center gap-6">
+      <header className="sticky top-0 z-30 h-14 bg-white border-b border-[#DFE1E6] px-3 sm:px-4 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5 sm:gap-6 min-w-0">
           {/* Project Brand */}
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-[3px] bg-[#0052CC] flex items-center justify-center text-white font-bold text-xs">
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="w-7 h-7 rounded-[3px] bg-[#0052CC] flex items-center justify-center text-white font-bold text-xs shrink-0">
               AI
             </div>
-            <div className="leading-tight">
+            <div className="leading-tight hidden sm:block whitespace-nowrap">
               <div className="text-sm font-semibold text-[#172B4D]">AI 전환 스프린트</div>
-              <div className="text-[11px] text-[#5E6C84] hidden sm:block">Scrum Software Project</div>
+              <div className="text-[11px] text-[#5E6C84]">Scrum Software Project</div>
             </div>
           </div>
 
           {/* 3 Jira Scrum Menus: 활성 스프린트 / 백로그 / 빅픽처 */}
-          <nav className="flex items-center gap-1">
+          <nav className="flex items-center gap-1 overflow-x-auto no-scrollbar">
             <button
               onClick={() => setActiveMenu('board')}
-              className={`px-3 py-1.5 rounded-[3px] text-sm font-medium transition relative ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-[3px] text-xs sm:text-sm font-medium whitespace-nowrap shrink-0 transition relative ${
                 activeMenu === 'board'
                   ? 'text-[#0052CC] bg-[#DEEBFF]/60'
                   : 'text-[#42526E] hover:bg-[#F4F5F7]'
@@ -662,7 +662,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveMenu('backlog')}
-              className={`px-3 py-1.5 rounded-[3px] text-sm font-medium transition relative ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-[3px] text-xs sm:text-sm font-medium whitespace-nowrap shrink-0 transition relative ${
                 activeMenu === 'backlog'
                   ? 'text-[#0052CC] bg-[#DEEBFF]/60'
                   : 'text-[#42526E] hover:bg-[#F4F5F7]'
@@ -675,7 +675,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveMenu('roadmap')}
-              className={`px-3 py-1.5 rounded-[3px] text-sm font-medium transition relative ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-[3px] text-xs sm:text-sm font-medium whitespace-nowrap shrink-0 transition relative ${
                 activeMenu === 'roadmap'
                   ? 'text-[#0052CC] bg-[#DEEBFF]/60'
                   : 'text-[#42526E] hover:bg-[#F4F5F7]'
@@ -692,7 +692,7 @@ export default function App() {
         {/* Right: Sync Status & Settings */}
         <button
           onClick={() => setShowSettingsModal(true)}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[3px] bg-[#F4F5F7] hover:bg-[#EBECF0] text-xs font-medium text-[#42526E] transition"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[3px] bg-[#F4F5F7] hover:bg-[#EBECF0] text-xs font-medium text-[#42526E] whitespace-nowrap shrink-0 transition"
         >
           <span
             className={`w-2 h-2 rounded-full ${
@@ -714,29 +714,31 @@ export default function App() {
 
       {/* MENU 1: ACTIVE SPRINT (칸반: 할 일 / 진행 중 / 완료) */}
       {activeMenu === 'board' && (
-        <div className="flex-1 flex flex-col max-w-7xl w-full mx-auto px-4 py-5 space-y-4">
+        <div className="flex-1 flex flex-col max-w-7xl w-full mx-auto px-3 sm:px-4 py-4 sm:py-5 space-y-4">
           {/* 상시 노출: 이번 스프린트 목적 & 완료 기준 히어로 영역 */}
-          <div className="bg-white rounded-[3px] border border-[#DFE1E6] border-l-4 border-l-[#0052CC] shadow-sm p-4 sm:p-5 space-y-4">
+          <div className="bg-white rounded-[3px] border border-[#DFE1E6] border-l-4 border-l-[#0052CC] shadow-sm p-3.5 sm:p-5 space-y-3.5 sm:space-y-4 overflow-hidden">
             {/* 상단 컨트롤 바: 스프린트 선택 + 시간 배지 + 최소유지/완료 버튼 */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-[#EBECF0]">
-              <div className="flex flex-wrap items-center gap-2 text-xs text-[#5E6C84]">
-                <span className="px-2 py-0.5 rounded-[3px] bg-[#DEEBFF] text-[#0747A6] font-bold">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-[#5E6C84] min-w-0">
+                <span className="px-2 py-0.5 rounded-[3px] bg-[#DEEBFF] text-[#0747A6] font-bold whitespace-nowrap shrink-0">
                   이번 스프린트 목적
                 </span>
                 <select
                   value={activeSprint.id}
                   onChange={(e) => setActiveSprintId(Number(e.target.value))}
-                  className="bg-[#F4F5F7] hover:bg-[#EBECF0] text-[#172B4D] font-bold px-2.5 py-1 rounded-[3px] border border-[#DFE1E6] outline-none cursor-pointer text-xs sm:text-sm"
+                  className="bg-[#F4F5F7] hover:bg-[#EBECF0] text-[#172B4D] font-bold px-2.5 py-1 rounded-[3px] border border-[#DFE1E6] outline-none cursor-pointer text-xs sm:text-sm max-w-full"
                 >
                   {state.sprints.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.title} ({s.period}) — {s.goal}
+                      {s.title} ({s.period})
                     </option>
                   ))}
                 </select>
-                <span className="font-medium text-[#42526E]">· {activeSprint.phaseName}</span>
+                <span className="font-medium text-[#42526E] whitespace-nowrap">
+                  · {activeSprint.phaseName}
+                </span>
                 {activeSprint.retro.goalAchieved === true && (
-                  <span className="px-2 py-0.5 rounded-[3px] bg-[#E3FCEF] text-[#006644] font-bold text-[11px]">
+                  <span className="px-2 py-0.5 rounded-[3px] bg-[#E3FCEF] text-[#006644] font-bold text-[11px] whitespace-nowrap">
                     ✓ 완료된 스프린트
                   </span>
                 )}
