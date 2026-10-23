@@ -11,7 +11,7 @@ export interface SyncConfig {
 }
 
 export function getSyncConfig(): SyncConfig {
-  const envUrl = import.meta.env.VITE_SUPABASE_URL || '';
+  const envUrl = import.meta.env.VITE_SUPABASE_URL || 'https://cqqzfshofwmhehklideq.supabase.co';
   const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
   const envSyncKey = import.meta.env.VITE_SYNC_KEY || 'yohan-ai-sprint-2026';
 
