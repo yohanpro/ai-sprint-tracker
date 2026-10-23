@@ -146,11 +146,22 @@ export default function App() {
   // Drag and drop state
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
 
-  // Create issue inline state
+  // Create issue modal state
   const [creatingInSprintId, setCreatingInSprintId] = useState<number | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState<string>('');
   const [newTaskHours, setNewTaskHours] = useState<string>('1');
   const [newTaskSlot, setNewTaskSlot] = useState<string>('1주 토');
+  const [newTaskStatus, setNewTaskStatus] = useState<IssueStatus>('todo');
+  const [newTaskNote, setNewTaskNote] = useState<string>('');
+
+  const openCreateIssueModal = (sprintId: number, defaultStatus: IssueStatus = 'todo') => {
+    setCreatingInSprintId(sprintId);
+    setNewTaskTitle('');
+    setNewTaskHours('1');
+    setNewTaskSlot('1주 토');
+    setNewTaskStatus(defaultStatus);
+    setNewTaskNote('');
+  };
 
   // Selected Issue Detail Modal state
   const [selectedIssue, setSelectedIssue] = useState<
@@ -189,7 +200,9 @@ export default function App() {
   };
 
   // Modal UX: ESC key to close, background scroll lock, and Mobile (Galaxy) Back Gesture support
-  const isAnyModalOpen = Boolean(selectedIssue || showCompleteModal || showSettingsModal);
+  const isAnyModalOpen = Boolean(
+    selectedIssue || showCompleteModal || showSettingsModal || creatingInSprintId !== null
+  );
   const modalHistoryPushedRef = useRef<boolean>(false);
 
   useEffect(() => {
@@ -199,6 +212,7 @@ export default function App() {
         setSelectedIssue(null);
         setShowCompleteModal(false);
         setShowSettingsModal(false);
+        setCreatingInSprintId(null);
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -218,6 +232,7 @@ export default function App() {
           setSelectedIssue(null);
           setShowCompleteModal(false);
           setShowSettingsModal(false);
+          setCreatingInSprintId(null);
         }
       };
       window.addEventListener('keydown', handleKeyDown);
@@ -514,29 +529,42 @@ export default function App() {
     const trimmed = newTaskTitle.trim();
     if (!trimmed) return;
     const hoursNum = Math.max(0.5, parseFloat(newTaskHours) || 1);
+    const trimmedNote = newTaskNote.trim();
     updateAppState((prev) => ({
       ...prev,
-      sprints: prev.sprints.map((sp) =>
-        sp.id !== sprintId
-          ? sp
-          : {
-              ...sp,
-              tasks: [
-                ...sp.tasks,
-                {
-                  id: `custom-${Date.now()}`,
-                  title: trimmed,
-                  hours: hoursNum,
-                  slot: newTaskSlot,
-                  done: false,
-                  status: 'todo',
-                  rolloverCount: 0,
-                },
-              ],
-            }
-      ),
+      sprints: prev.sprints.map((sp) => {
+        if (sp.id !== sprintId) return sp;
+        const updatedTasks: SprintTask[] = [
+          ...sp.tasks,
+          {
+            id: `custom-${Date.now()}`,
+            title: trimmed,
+            hours: hoursNum,
+            slot: newTaskSlot,
+            done: newTaskStatus === 'done',
+            status: newTaskStatus,
+            rolloverCount: 0,
+            ...(trimmedNote ? { note: trimmedNote } : {}),
+          },
+        ];
+        const autoDoneHours =
+          Math.round(
+            updatedTasks
+              .filter((t) => getTaskStatus(t) === 'done')
+              .reduce((sum, t) => sum + t.hours, 0) * 10
+          ) / 10;
+        return {
+          ...sp,
+          tasks: updatedTasks,
+          retro: {
+            ...sp.retro,
+            actualHours: autoDoneHours,
+          },
+        };
+      }),
     }));
     setNewTaskTitle('');
+    setNewTaskNote('');
     setCreatingInSprintId(null);
   };
 
@@ -735,6 +763,14 @@ export default function App() {
               {activeMenu === 'roadmap' && (
                 <span className="absolute bottom-0 inset-x-0 h-[2px] bg-[#0052CC]" />
               )}
+            </button>
+            <button
+              type="button"
+              onClick={() => openCreateIssueModal(activeSprintId, 'todo')}
+              className="ml-1 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-[3px] bg-[#0052CC] hover:bg-[#0065FF] text-white text-xs font-semibold whitespace-nowrap shrink-0 transition cursor-pointer shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>이슈 만들기</span>
             </button>
           </nav>
         </div>
@@ -1084,72 +1120,17 @@ export default function App() {
                     })}
                   </div>
 
-                  {/* Quick Create Issue in Todo Column */}
-                  {colStatus === 'todo' && (
-                    <div className="mt-2 pt-1">
-                      {creatingInSprintId === activeSprint.id ? (
-                        <div className="bg-white p-2 rounded-[3px] shadow-sm border border-[#0052CC] space-y-2">
-                          <input
-                            type="text"
-                            autoFocus
-                            placeholder="무엇을 해야 하나요?"
-                            value={newTaskTitle}
-                            onChange={(e) => setNewTaskTitle(e.target.value)}
-                            onKeyDown={(e) =>
-                              e.key === 'Enter' && addIssueToSprint(activeSprint.id)
-                            }
-                            className="w-full text-xs outline-none text-[#172B4D]"
-                          />
-                          <div className="flex items-center justify-between gap-1">
-                            <div className="flex items-center gap-1">
-                              <select
-                                value={newTaskSlot}
-                                onChange={(e) => setNewTaskSlot(e.target.value)}
-                                className="text-[11px] bg-[#F4F5F7] px-1.5 py-0.5 rounded-[3px]"
-                              >
-                                {SPRINT_SLOTS.map((s) => (
-                                  <option key={s.key} value={s.key}>
-                                    {s.key}
-                                  </option>
-                                ))}
-                              </select>
-                              <input
-                                type="number"
-                                step="0.5"
-                                min="0.5"
-                                value={newTaskHours}
-                                onChange={(e) => setNewTaskHours(e.target.value)}
-                                className="w-12 text-[11px] bg-[#F4F5F7] px-1.5 py-0.5 rounded-[3px] text-center"
-                              />
-                              <span className="text-[11px] text-[#5E6C84]">h</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => setCreatingInSprintId(null)}
-                                className="px-2 py-0.5 text-[11px] text-[#5E6C84]"
-                              >
-                                취소
-                              </button>
-                              <button
-                                onClick={() => addIssueToSprint(activeSprint.id)}
-                                className="px-2 py-0.5 rounded-[3px] bg-[#0052CC] text-white text-[11px] font-semibold"
-                              >
-                                만들기
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setCreatingInSprintId(activeSprint.id)}
-                          className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-[3px] hover:bg-[#EBECF0] text-xs font-medium text-[#42526E] transition"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>이슈 만들기</span>
-                        </button>
-                      )}
-                    </div>
-                  )}
+                  {/* Create Issue Button in Kanban Column */}
+                  <div className="mt-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => openCreateIssueModal(activeSprint.id, colStatus)}
+                      className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-[3px] hover:bg-[#EBECF0] text-xs font-medium text-[#42526E] transition cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>이슈 만들기</span>
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -1474,60 +1455,16 @@ export default function App() {
                       );
                     })}
 
-                    {/* Inline Create Issue in Backlog */}
-                    <div className="px-3 py-1.5 bg-[#FAFBFC]">
-                      {creatingInSprintId === sp.id ? (
-                        <div className="flex flex-wrap items-center gap-2 py-1">
-                          <input
-                            type="text"
-                            autoFocus
-                            placeholder="새 이슈 제목 입력..."
-                            value={newTaskTitle}
-                            onChange={(e) => setNewTaskTitle(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && addIssueToSprint(sp.id)}
-                            className="flex-1 min-w-[180px] text-xs px-2 py-1 border border-[#0052CC] rounded-[3px] outline-none"
-                          />
-                          <select
-                            value={newTaskSlot}
-                            onChange={(e) => setNewTaskSlot(e.target.value)}
-                            className="text-xs border border-[#DFE1E6] rounded-[3px] px-2 py-1 bg-white"
-                          >
-                            {SPRINT_SLOTS.map((s) => (
-                              <option key={s.key} value={s.key}>
-                                {s.key}
-                              </option>
-                            ))}
-                          </select>
-                          <input
-                            type="number"
-                            step="0.5"
-                            min="0.5"
-                            value={newTaskHours}
-                            onChange={(e) => setNewTaskHours(e.target.value)}
-                            className="w-14 text-xs border border-[#DFE1E6] rounded-[3px] px-2 py-1 text-center"
-                          />
-                          <button
-                            onClick={() => addIssueToSprint(sp.id)}
-                            className="px-2.5 py-1 rounded-[3px] bg-[#0052CC] text-white text-xs font-semibold"
-                          >
-                            만들기
-                          </button>
-                          <button
-                            onClick={() => setCreatingInSprintId(null)}
-                            className="px-2 py-1 text-xs text-[#5E6C84]"
-                          >
-                            취소
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setCreatingInSprintId(sp.id)}
-                          className="flex items-center gap-1 text-xs text-[#5E6C84] hover:text-[#172B4D] py-0.5"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>이슈 만들기</span>
-                        </button>
-                      )}
+                    {/* Create Issue Button in Backlog */}
+                    <div className="px-3 py-2 bg-[#FAFBFC]">
+                      <button
+                        type="button"
+                        onClick={() => openCreateIssueModal(sp.id, 'todo')}
+                        className="flex items-center gap-1 text-xs font-medium text-[#42526E] hover:text-[#0052CC] py-0.5 cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>이슈 만들기</span>
+                      </button>
                     </div>
                   </div>
                 )}
@@ -2615,6 +2552,142 @@ export default function App() {
                   <input type="file" accept=".json" onChange={importBackupJson} className="hidden" />
                 </label>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Jira "Create Issue (새 이슈 만들기)" Modal */}
+      {creatingInSprintId !== null && (
+        <div
+          onClick={() => setCreatingInSprintId(null)}
+          className="fixed inset-0 z-50 bg-[#091E42]/50 flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-[3px] max-w-lg w-full p-5 sm:p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between border-b border-[#DFE1E6] pb-3">
+              <div className="flex items-center gap-2">
+                <CheckSquare className="w-4 h-4 text-[#4BADE8]" />
+                <h3 className="text-base font-bold text-[#172B4D]">이슈 만들기</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCreatingInSprintId(null)}
+                className="p-1 rounded-[3px] text-[#5E6C84] hover:bg-[#EBECF0] hover:text-[#172B4D]"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs">
+              {/* 1. 대상 스프린트 */}
+              <div>
+                <label className="block font-bold text-[#42526E] mb-1">
+                  스프린트 <span className="text-[#DE350B]">*</span>
+                </label>
+                <select
+                  value={creatingInSprintId}
+                  onChange={(e) => setCreatingInSprintId(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-[3px] bg-[#FAFBFC] border border-[#DFE1E6] focus:border-[#0052CC] text-xs font-semibold text-[#172B4D] outline-none"
+                >
+                  {state.sprints.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.title} ({s.period}) — {s.goal}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 2. 요약 (이슈 제목) */}
+              <div>
+                <label className="block font-bold text-[#42526E] mb-1">
+                  요약 (이슈 제목) <span className="text-[#DE350B]">*</span>
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="예: FastAPI 비동기 엔드포인트 에러 핸들링 테스트 추가"
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                      addIssueToSprint(creatingInSprintId);
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded-[3px] border border-[#DFE1E6] focus:border-[#0052CC] text-xs sm:text-sm text-[#172B4D] outline-none"
+                />
+              </div>
+
+              {/* 3. 상태 / 배정 슬롯 / 예상 시간 */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-bold text-[#42526E] mb-1">초기 상태</label>
+                  <div className="pt-0.5">
+                    {renderStatusButtons(newTaskStatus, (next) => setNewTaskStatus(next), 'md')}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#42526E] mb-1">배정 요일 슬롯</label>
+                  <select
+                    value={newTaskSlot}
+                    onChange={(e) => setNewTaskSlot(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-[3px] bg-[#FAFBFC] border border-[#DFE1E6] focus:border-[#0052CC] text-xs font-medium text-[#172B4D] outline-none"
+                  >
+                    {SPRINT_SLOTS.map((s) => (
+                      <option key={s.key} value={s.key}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#42526E] mb-1">예상 소요 시간 (h)</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0.5"
+                    value={newTaskHours}
+                    onChange={(e) => setNewTaskHours(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-[3px] border border-[#DFE1E6] focus:border-[#0052CC] text-xs font-semibold text-[#172B4D] outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* 4. 실행 계획 / 메모 */}
+              <div>
+                <label className="block font-bold text-[#42526E] mb-1">
+                  설명 · 실행 계획 메모 (선택)
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="참고할 강의 링크, 실험 목표, 완료 조건 등을 미리 적어두세요..."
+                  value={newTaskNote}
+                  onChange={(e) => setNewTaskNote(e.target.value)}
+                  className="w-full p-2.5 rounded-[3px] border border-[#DFE1E6] focus:border-[#0052CC] text-xs text-[#172B4D] outline-none leading-relaxed"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#DFE1E6]">
+              <button
+                type="button"
+                onClick={() => setCreatingInSprintId(null)}
+                className="px-3.5 py-1.5 rounded-[3px] hover:bg-[#F4F5F7] text-xs font-semibold text-[#42526E] cursor-pointer"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                disabled={!newTaskTitle.trim()}
+                onClick={() => addIssueToSprint(creatingInSprintId)}
+                className="px-4 py-1.5 rounded-[3px] bg-[#0052CC] hover:bg-[#0065FF] disabled:opacity-40 text-white text-xs font-semibold cursor-pointer"
+              >
+                만들기
+              </button>
             </div>
           </div>
         </div>
