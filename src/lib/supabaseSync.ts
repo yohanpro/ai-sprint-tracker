@@ -1,5 +1,5 @@
 import { createClient, RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
-import { AppState, INITIAL_APP_STATE } from '../data/sprintPlan';
+import { AppState, ensureIssueKeys, INITIAL_APP_STATE } from '../data/sprintPlan';
 
 const LOCAL_STORAGE_STATE_KEY = 'ai_sprint_tracker_state_v1';
 const LOCAL_STORAGE_CONFIG_KEY = 'ai_sprint_tracker_supabase_config_v1';
@@ -50,11 +50,11 @@ export function loadLocalState(): AppState {
     const raw = localStorage.getItem(LOCAL_STORAGE_STATE_KEY);
     if (!raw) return INITIAL_APP_STATE;
     const parsed = JSON.parse(raw) as AppState;
-    return {
+    return ensureIssueKeys({
       ...INITIAL_APP_STATE,
       ...parsed,
       sprints: parsed.sprints?.length === 13 ? parsed.sprints : INITIAL_APP_STATE.sprints,
-    };
+    });
   } catch {
     return INITIAL_APP_STATE;
   }
@@ -131,7 +131,7 @@ export async function pullStateFromCloud(
   if (!data || !data.payload) {
     return { ok: true, state: undefined };
   }
-  return { ok: true, state: data.payload as AppState };
+  return { ok: true, state: ensureIssueKeys(data.payload as AppState) };
 }
 
 export function subscribeToCloudChanges(
@@ -154,7 +154,7 @@ export function subscribeToCloudChanges(
       (payload) => {
         const nextRow = payload.new as { payload?: AppState } | undefined;
         if (nextRow?.payload) {
-          onRemoteState(nextRow.payload);
+          onRemoteState(ensureIssueKeys(nextRow.payload));
         }
       }
     )

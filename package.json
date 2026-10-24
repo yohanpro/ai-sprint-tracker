@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "deploy": "npm run build && touch dist/.nojekyll && git -C dist init && git -C dist checkout -B gh-pages && git -C dist add -A && git -C dist commit -m 'deploy' && git -C dist push -f https://github.com/yohanpro/ai-sprint-tracker.git gh-pages:gh-pages && rm -rf dist/.git"
+    "deploy": "npm run build && cp dist/index.html dist/404.html && touch dist/.nojekyll && git -C dist init && git -C dist checkout -B gh-pages && git -C dist add -A && git -C dist commit -m 'deploy' && git -C dist push -f https://github.com/yohanpro/ai-sprint-tracker.git gh-pages:gh-pages && rm -rf dist/.git"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

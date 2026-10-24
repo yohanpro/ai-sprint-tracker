@@ -218,6 +218,45 @@ export default function App() {
   );
   const modalHistoryPushedRef = useRef<boolean>(false);
 
+  // Issue deep link: 이슈 모달이 열려 있으면 URL을 /browse/AIT-N 으로 맞춤
+  const selectedIssueKey = !selectedIssue
+    ? undefined
+    : selectedIssue.type === 'sprint'
+    ? state.sprints
+        .find((s) => s.id === selectedIssue.sprintId)
+        ?.tasks.find((t) => t.id === selectedIssue.taskId)?.key
+    : state.dDayChecklist.find((d) => d.id === selectedIssue.id)?.key;
+  const modalUrl = selectedIssueKey
+    ? `${import.meta.env.BASE_URL}browse/${selectedIssueKey}`
+    : import.meta.env.BASE_URL;
+
+  // /browse/AIT-N 으로 직접 진입: 기본 URL을 히스토리 바닥에 깔고 해당 이슈 모달을 연 상태로 시작
+  useEffect(() => {
+    const match = window.location.pathname.match(/\/browse\/(AIT-\d+)\/?$/i);
+    if (!match) return;
+    const key = match[1].toUpperCase();
+    window.history.replaceState(null, '', import.meta.env.BASE_URL);
+    const dDayItem = state.dDayChecklist.find((d) => d.key === key);
+    if (dDayItem) {
+      setSelectedIssue({ type: 'dday', id: dDayItem.id });
+      return;
+    }
+    for (const sp of state.sprints) {
+      const task = sp.tasks.find((t) => t.key === key);
+      if (task) {
+        setSelectedIssue({ type: 'sprint', sprintId: sp.id, taskId: task.id });
+        return;
+      }
+    }
+  }, []);
+
+  // 모달이 열린 채로 내용이 바뀌면(이슈 → 캘린더 모달 등) 현재 히스토리 항목의 URL만 교체
+  useEffect(() => {
+    if (modalHistoryPushedRef.current) {
+      window.history.replaceState({ modalOpen: true }, '', modalUrl);
+    }
+  }, [modalUrl]);
+
   useEffect(() => {
     const handlePopState = () => {
       if (modalHistoryPushedRef.current) {
@@ -237,7 +276,7 @@ export default function App() {
     if (isAnyModalOpen) {
       document.body.style.overflow = 'hidden';
       if (!modalHistoryPushedRef.current) {
-        window.history.pushState({ modalOpen: true }, '');
+        window.history.pushState({ modalOpen: true }, '', modalUrl);
         modalHistoryPushedRef.current = true;
       }
       const handleKeyDown = (e: KeyboardEvent) => {
@@ -547,12 +586,14 @@ export default function App() {
     const trimmedNote = newTaskNote.trim();
     updateAppState((prev) => ({
       ...prev,
+      nextIssueNumber: prev.nextIssueNumber + 1,
       sprints: prev.sprints.map((sp) => {
         if (sp.id !== sprintId) return sp;
         const updatedTasks: SprintTask[] = [
           ...sp.tasks,
           {
             id: `custom-${Date.now()}`,
+            key: `AIT-${prev.nextIssueNumber}`,
             title: trimmed,
             hours: hoursNum,
             slot: newTaskSlot,
@@ -2120,6 +2161,21 @@ export default function App() {
               <div className="flex items-center justify-between gap-2 pb-3 border-b border-[#DFE1E6]">
                 <div className="flex items-center gap-2 text-xs text-[#5E6C84] font-medium">
                   <CheckSquare className="w-4 h-4 text-[#4BADE8] shrink-0" />
+                  <button
+                    type="button"
+                    onClick={() => handleCopyText('issue-link', window.location.href)}
+                    title="이슈 링크 복사"
+                    className="inline-flex items-center gap-1 font-bold text-[#0052CC] hover:underline whitespace-nowrap shrink-0"
+                  >
+                    {copiedKey === 'issue-link' ? (
+                      <>
+                        <Check className="w-3 h-3" />
+                        <span>링크 복사됨</span>
+                      </>
+                    ) : (
+                      <span>{item.key}</span>
+                    )}
+                  </button>
                   <span>{contextLabel}</span>
                 </div>
                 <div className="flex items-center gap-2">
