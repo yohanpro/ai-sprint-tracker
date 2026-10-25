@@ -1109,14 +1109,17 @@ export default function App() {
                           }
                           className="bg-white rounded-[3px] p-3 shadow-[0_1px_2px_rgba(9,30,66,0.18)] border border-transparent hover:border-[#4C9AFF] transition cursor-pointer space-y-2"
                         >
-                          <div
-                            className={`text-sm font-medium leading-snug ${
-                              colStatus === 'done'
-                                ? 'line-through text-[#6B778C]'
-                                : 'text-[#172B4D]'
-                            }`}
-                          >
-                            {task.title}
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="font-mono text-[11px] font-semibold text-[#5E6C84] shrink-0">{task.key}</span>
+                            <div
+                              className={`text-sm font-medium leading-snug ${
+                                colStatus === 'done'
+                                  ? 'line-through text-[#6B778C]'
+                                  : 'text-[#172B4D]'
+                              }`}
+                            >
+                              {task.title}
+                            </div>
                           </div>
 
                           {/* 1-line summary on card so it's immediately clear what to do */}
@@ -1318,12 +1321,15 @@ export default function App() {
                       <div className="flex items-start gap-2.5 min-w-0 flex-1">
                         <CheckSquare className="w-3.5 h-3.5 text-[#4BADE8] shrink-0 mt-0.5" />
                         <div className="min-w-0 flex-1 space-y-0.5">
-                          <div
-                            className={`font-medium ${
-                              st === 'done' ? 'line-through text-[#6B778C]' : 'text-[#172B4D]'
-                            }`}
-                          >
-                            {item.title}
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="font-mono text-[11px] font-semibold text-[#5E6C84] shrink-0">{item.key}</span>
+                            <div
+                              className={`font-medium ${
+                                st === 'done' ? 'line-through text-[#6B778C]' : 'text-[#172B4D]'
+                              }`}
+                            >
+                              {item.title}
+                            </div>
                           </div>
                           {guide && (
                             <div className="text-[11px] text-[#5E6C84] truncate">
@@ -1451,6 +1457,7 @@ export default function App() {
                             <CheckSquare className="w-3.5 h-3.5 text-[#4BADE8] shrink-0 mt-0.5" />
                             <div className="min-w-0 flex-1 space-y-0.5">
                               <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="font-mono text-[11px] font-semibold text-[#5E6C84] shrink-0">{task.key}</span>
                                 <span
                                   className={`font-medium ${
                                     st === 'done'
@@ -1901,7 +1908,7 @@ export default function App() {
                                     {/* Task Key */}
                                     <div className="col-span-3 sm:col-span-2 px-2.5 py-2 border-r border-[#DFE1E6] text-[#5E6C84] font-mono text-[11px] pl-4 flex items-center gap-1">
                                       <CheckSquare className="w-3 h-3 text-[#4BADE8] shrink-0" />
-                                      <span className="truncate">{task.id.toUpperCase()}</span>
+                                      <span className="truncate">{task.key}</span>
                                     </div>
 
                                     {/* Task Tree Connectors + Title */}
