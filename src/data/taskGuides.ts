@@ -93,12 +93,12 @@ export const TASK_GUIDES: Record<string, TaskGuide> = {
     summary: 'UI 없이 터미널에서 짧은 TypeScript 스크립트로 LLM API를 처음 호출해 응답 JSON을 눈으로 확인합니다.',
     why: '프레임워크(Vercel AI SDK 등)가 추상화해 버리기 전에, 원본 HTTP 요청/응답 구조(`messages` 배열, `role`, `usage` 토큰 수)를 직접 눈으로 봐야 LLM의 동작 원리가 명확해집니다.',
     steps: [
-      '`scripts/first-call.ts` 파일을 만들고 OpenAI(또는 Anthropic) SDK로 텍스트 질문을 하나 보냅니다.',
-      '단순 답변 텍스트뿐만 아니라 전체 `response` 객체(`choices`, `usage.prompt_tokens`, `usage.completion_tokens`)를 `console.log`로 찍어봅니다.',
-      '내가 보낸 질문이 몇 토큰이고 답변이 몇 토큰인지 확인합니다.',
+      '`sprint1-chatbot/scripts/first-call.mts` 파일을 만들고 Anthropic SDK(`@anthropic-ai/sdk`)로 텍스트 질문을 하나 보냅니다(확장자 `.mts` 필수 — `.ts`는 top-level await 에러).',
+      '답변 텍스트뿐만 아니라 `content` 블록 종류(`thinking`·`text`), `stop_reason`, `usage.input_tokens`·`usage.output_tokens`를 `console.log`로 찍어봅니다.',
+      '내가 보낸 질문이 몇 토큰이고 답변이 몇 토큰인지 확인합니다(Opus 5.5는 항상 먼저 생각하므로 출력 토큰에 사고 과정이 포함됨).',
     ],
     deliverable: '터미널에서 스크립트를 실행해 LLM 응답과 토큰 사용량(`usage`) 출력 확인',
-    codeOrCommand: `// npx tsx --env-file=.env.local scripts/first-call.ts\nimport OpenAI from 'openai';\nconst client = new OpenAI();\nconst res = await client.chat.completions.create({\n  model: 'gpt-4o-mini',\n  messages: [{ role: 'user', content: '프론트엔드 개발자가 AI를 배울 때 가장 유리한 점 3가지를 알려줘' }],\n});\nconsole.log(res.choices[0].message.content);\nconsole.log('토큰 사용량:', res.usage);`,
+    codeOrCommand: `// npx tsx --env-file=.env.local scripts/first-call.mts\nimport Anthropic from '@anthropic-ai/sdk';\n\nconst client = new Anthropic(); // .env.local의 ANTHROPIC_API_KEY를 자동으로 읽음\n\nconst res = await client.beta.messages.create({\n  model: 'claude-opus-5-5',\n  max_tokens: 16000,\n  betas: ['server-side-fallback-2026-07-01'],\n  fallbacks: 'default', // 안전 분류기가 거절하면 다른 모델로 자동 재시도\n  messages: [{ role: 'user', content: '프론트엔드 개발자가 AI를 배울 때 가장 유리한 점 3가지를 알려줘' }],\n});\n\nfor (const block of res.content) {\n  if (block.type === 'text') console.log(block.text);\n}\nconsole.log('content 블록 종류:', res.content.map((b) => b.type));\nconsole.log('stop_reason:', res.stop_reason);\nconsole.log('토큰 사용량:', res.usage); // input_tokens = 질문, output_tokens = 답변(사고 포함)`,
   },
   's1-4': {
     summary: '같은 질문에 대해 system 프롬프트, temperature(0 vs 1.2), max_tokens를 바꿔가며 출력이 어떻게 달라지는지 실험합니다.',
