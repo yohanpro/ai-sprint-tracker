@@ -2319,7 +2319,6 @@ export default function App() {
                   ④ 내 실행 결과 · 메모 기록란 (입력 시 자동 저장 & PC·모바일 실시간 동기화)
                 </label>
                 <textarea
-                  rows={4}
                   value={item.note || ''}
                   onChange={(e) => {
                     const val = e.target.value;
@@ -2330,7 +2329,7 @@ export default function App() {
                     }
                   }}
                   placeholder="실험 결과 요약, 10줄 정리, 배운 점, 또는 GitHub 커밋/문서 링크를 이곳에 자유롭게 남겨두세요..."
-                  className="w-full p-3 rounded-[3px] border border-[#DFE1E6] focus:border-[#0052CC] text-xs sm:text-sm text-[#172B4D] outline-none leading-relaxed"
+                  className="w-full p-3 rounded-[3px] border border-[#DFE1E6] focus:border-[#0052CC] text-xs sm:text-sm text-[#172B4D] outline-none leading-relaxed min-h-[15rem] [field-sizing:content]"
                 />
               </div>
 
