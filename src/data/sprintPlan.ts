@@ -107,6 +107,15 @@ export interface TimerLog {
   createdAt: string;
 }
 
+export interface IssueComment {
+  id: string;
+  issueId: string; // SprintTask.id 또는 DDayItem.id
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string; // 기기 간 병합 시 되살아나지 않도록 실제 삭제 대신 표시만
+}
+
 export interface AppState {
   updatedAt: string;
   nextIssueNumber: number; // 다음에 발급할 AIT-N 번호 (발급한 번호는 재사용하지 않음)
@@ -117,6 +126,7 @@ export interface AppState {
   finalChecklist: FinalChecklistItem[];
   parallelTrack: ParallelTrackItem[];
   timerLogs: TimerLog[];
+  comments?: IssueComment[]; // 이전 버전 백업·클라우드 데이터에는 없을 수 있음
   weeklyScheduleCustom: {
     tue: string;
     thu: string;
@@ -248,6 +258,7 @@ export const INITIAL_APP_STATE: AppState = {
     { id: 'pt-7', category: '3b1b', title: '3Blue1Brown 선형대수: 내적(Dot Product)과 쌍대성 → 코사인 유사도 연결', targetPeriod: 'S4 전 필수', done: false },
   ],
   timerLogs: [],
+  comments: [],
   sprints: [
     {
       id: 1,

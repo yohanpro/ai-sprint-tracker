@@ -9,6 +9,7 @@ import {
   Copy,
   Download,
   FileText,
+  MessageSquare,
   Plus,
   RefreshCw,
   Scissors,
@@ -27,12 +28,14 @@ import {
 import {
   AppState,
   getTaskStatus,
+  IssueComment,
   IssueStatus,
   SPRINT_SLOTS,
   SprintData,
   SprintTask,
 } from './data/sprintPlan';
 import { getTaskGuide, SPRINT_PURPOSE_GUIDES } from './data/taskGuides';
+import CommentSection from './components/CommentSection';
 import {
   getSyncConfig,
   loadLocalState,
@@ -352,9 +355,20 @@ export default function App() {
     if (!isCloudConfigured) return;
     let cancelled = false;
 
+    // 댓글은 id 기준 합집합 — 같은 id면 updatedAt이 최신인 쪽 (수정·삭제 표시 포함)
+    const mergeComments = (a: IssueComment[] = [], b: IssueComment[] = []): IssueComment[] => {
+      const byId = new Map<string, IssueComment>();
+      [...a, ...b].forEach((c) => {
+        const existing = byId.get(c.id);
+        if (!existing || c.updatedAt > existing.updatedAt) byId.set(c.id, c);
+      });
+      return Array.from(byId.values()).sort((x, y) => x.createdAt.localeCompare(y.createdAt));
+    };
+
     const mergePreserveNotes = (base: AppState, other: AppState): AppState => {
       return {
         ...base,
+        comments: mergeComments(base.comments, other.comments),
         dDayChecklist: base.dDayChecklist.map((item) => {
           const otherItem = other.dDayChecklist.find((d) => d.id === item.id);
           const mergedNote =
@@ -555,6 +569,45 @@ export default function App() {
       ),
     }));
   };
+
+  const addComment = (issueId: string, body: string) => {
+    const now = new Date().toISOString();
+    const comment: IssueComment = {
+      id: `cmt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      issueId,
+      body,
+      createdAt: now,
+      updatedAt: now,
+    };
+    updateAppState((prev) => ({ ...prev, comments: [...(prev.comments ?? []), comment] }));
+  };
+
+  const editComment = (commentId: string, body: string) => {
+    updateAppState((prev) => ({
+      ...prev,
+      comments: (prev.comments ?? []).map((c) =>
+        c.id === commentId ? { ...c, body, updatedAt: new Date().toISOString() } : c
+      ),
+    }));
+  };
+
+  const deleteComment = (commentId: string) => {
+    const now = new Date().toISOString();
+    updateAppState((prev) => ({
+      ...prev,
+      comments: (prev.comments ?? []).map((c) =>
+        c.id === commentId ? { ...c, deletedAt: now, updatedAt: now } : c
+      ),
+    }));
+  };
+
+  const commentCountByIssue = useMemo(() => {
+    const counts: Record<string, number> = {};
+    (state.comments ?? []).forEach((c) => {
+      if (!c.deletedAt) counts[c.issueId] = (counts[c.issueId] || 0) + 1;
+    });
+    return counts;
+  }, [state.comments]);
 
   const halveTaskScope = (sprintId: number, taskId: string) => {
     updateAppState((prev) => ({
@@ -1137,6 +1190,14 @@ export default function App() {
                             </div>
                           )}
 
+                          {/* Comment Count */}
+                          {commentCountByIssue[task.id] > 0 && (
+                            <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] bg-[#DEEBFF] text-[#0747A6] text-[11px] font-medium">
+                              <MessageSquare className="w-3 h-3" />
+                              <span>{commentCountByIssue[task.id]}</span>
+                            </div>
+                          )}
+
                           {/* Rollover Lozenge */}
                           {task.rolloverCount > 0 && (
                             <div
@@ -1471,6 +1532,12 @@ export default function App() {
                                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] bg-[#E3FCEF] text-[#006644] text-[10px] font-semibold">
                                     <FileText className="w-2.5 h-2.5" />
                                     메모
+                                  </span>
+                                )}
+                                {commentCountByIssue[task.id] > 0 && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] bg-[#DEEBFF] text-[#0747A6] text-[10px] font-semibold">
+                                    <MessageSquare className="w-2.5 h-2.5" />
+                                    {commentCountByIssue[task.id]}
                                   </span>
                                 )}
                                 {task.rolloverCount > 0 && (
@@ -1933,6 +2000,12 @@ export default function App() {
                                           메모
                                         </span>
                                       )}
+                                      {commentCountByIssue[task.id] > 0 && (
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-[2px] bg-[#DEEBFF] text-[#0747A6] text-[10px] font-semibold shrink-0">
+                                          <MessageSquare className="w-2.5 h-2.5" />
+                                          {commentCountByIssue[task.id]}
+                                        </span>
+                                      )}
                                     </div>
 
                                     {/* Inline Quick Status Switch */}
@@ -2339,6 +2412,17 @@ export default function App() {
                   className="w-full p-3 rounded-[3px] border border-[#DFE1E6] focus:border-[#0052CC] text-xs sm:text-sm text-[#172B4D] outline-none leading-relaxed min-h-[15rem] [field-sizing:content]"
                 />
               </div>
+
+              {/* 5. 진행 로그 · 댓글 */}
+              <CommentSection
+                key={item.id}
+                comments={(state.comments ?? []).filter(
+                  (c) => c.issueId === item.id && !c.deletedAt
+                )}
+                onAdd={(body) => addComment(item.id, body)}
+                onEdit={editComment}
+                onDelete={deleteComment}
+              />
 
               <div className="flex justify-end pt-1">
                 <button
