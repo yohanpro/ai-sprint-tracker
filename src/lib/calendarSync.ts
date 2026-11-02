@@ -2,25 +2,25 @@ import { SprintData, SprintTask } from '../data/sprintPlan';
 import { getTaskGuide } from '../data/taskGuides';
 
 const SLOT_OFFSET_DAYS: Record<string, { dayOffset: number; startHour: number; weekdayKo: string }> = {
-  '1주 토': { dayOffset: 0, startHour: 8, weekdayKo: '토' },
-  '1주 일': { dayOffset: 1, startHour: 8, weekdayKo: '일' },
-  '1주 화': { dayOffset: 3, startHour: 21, weekdayKo: '화' },
-  '1주 목': { dayOffset: 5, startHour: 21, weekdayKo: '목' },
-  '2주 토': { dayOffset: 7, startHour: 8, weekdayKo: '토' },
-  '2주 일': { dayOffset: 8, startHour: 8, weekdayKo: '일' },
-  '2주 화': { dayOffset: 10, startHour: 21, weekdayKo: '화' },
-  '2주 목': { dayOffset: 12, startHour: 21, weekdayKo: '목' },
+  '1주 화': { dayOffset: 1, startHour: 21, weekdayKo: '화' },
+  '1주 목': { dayOffset: 3, startHour: 21, weekdayKo: '목' },
+  '1주 토': { dayOffset: 5, startHour: 8, weekdayKo: '토' },
+  '1주 일': { dayOffset: 6, startHour: 8, weekdayKo: '일' },
+  '2주 화': { dayOffset: 8, startHour: 21, weekdayKo: '화' },
+  '2주 목': { dayOffset: 10, startHour: 21, weekdayKo: '목' },
+  '2주 토': { dayOffset: 12, startHour: 8, weekdayKo: '토' },
+  '2주 일': { dayOffset: 13, startHour: 8, weekdayKo: '일' },
 };
 
 export interface TaskScheduleInfo {
   start: Date;
   end: Date;
-  dateLabel: string; // 예: 2026-10-24 (토) 08:00~10:00
+  dateLabel: string; // 예: 2026-11-07 (토) 08:00~10:00
 }
 
 export function getTaskSchedule(sprint: SprintData, task: SprintTask): TaskScheduleInfo {
   const [y, m, d] = sprint.startDate.split('-').map(Number);
-  const slotMeta = SLOT_OFFSET_DAYS[task.slot] || { dayOffset: 0, startHour: 8, weekdayKo: '토' };
+  const slotMeta = SLOT_OFFSET_DAYS[task.slot] || { dayOffset: 5, startHour: 8, weekdayKo: '토' };
 
   const start = new Date(y, m - 1, d + slotMeta.dayOffset, slotMeta.startHour, 0, 0);
   const durationMinutes = Math.max(30, Math.round(task.hours * 60));
@@ -99,8 +99,8 @@ export function getGoogleCalendarRoutineUrl(type: 'weekday' | 'weekend'): string
     const params = new URLSearchParams({
       action: 'TEMPLATE',
       text: '🔥 [AI 전환 스프린트] 평일 집중 공부 (화·목 1시간)',
-      dates: '20261027T210000/20261027T220000',
-      recur: 'RRULE:FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=20270424T235959Z',
+      dates: '20261103T210000/20261103T220000',
+      recur: 'RRULE:FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=20270502T235959Z',
       details:
         'AI 엔지니어 전환 6개월 로드맵 평일 1시간 루틴입니다.\n트래커: https://yohanpro.github.io/ai-sprint-tracker/',
       ctz: 'Asia/Seoul',
@@ -111,8 +111,8 @@ export function getGoogleCalendarRoutineUrl(type: 'weekday' | 'weekend'): string
   const params = new URLSearchParams({
     action: 'TEMPLATE',
     text: '🚀 [AI 전환 스프린트] 주말 골든타임 몰입 (토·일 2시간)',
-    dates: '20261024T080000/20261024T100000',
-    recur: 'RRULE:FREQ=WEEKLY;BYDAY=SA,SU;UNTIL=20270424T235959Z',
+    dates: '20261107T080000/20261107T100000',
+    recur: 'RRULE:FREQ=WEEKLY;BYDAY=SA,SU;UNTIL=20270502T235959Z',
     details:
       'AI 엔지니어 전환 6개월 로드맵 주말 오전 2시간 집중 블록입니다 (10시 이후는 온전히 가족 시간!).\n트래커: https://yohanpro.github.io/ai-sprint-tracker/',
     ctz: 'Asia/Seoul',
@@ -147,9 +147,9 @@ export function downloadWeeklyRoutineIcs(): void {
     'BEGIN:VEVENT',
     'UID:ai-sprint-weekend-routine@yohanpro.github.io',
     `DTSTAMP:${nowStamp}`,
-    'DTSTART;TZID=Asia/Seoul:20261024T080000',
-    'DTEND;TZID=Asia/Seoul:20261024T100000',
-    'RRULE:FREQ=WEEKLY;BYDAY=SA,SU;UNTIL=20270424T235959Z',
+    'DTSTART;TZID=Asia/Seoul:20261107T080000',
+    'DTEND;TZID=Asia/Seoul:20261107T100000',
+    'RRULE:FREQ=WEEKLY;BYDAY=SA,SU;UNTIL=20270502T235959Z',
     'SUMMARY:🚀 [AI 전환 스프린트] 주말 오전 2시간 골든타임 (08:00~10:00)',
     'DESCRIPTION:주말 오전 2시간 AI 실습 몰입 블록입니다. 10시 이후는 가족 시간!\\nhttps://yohanpro.github.io/ai-sprint-tracker/',
     'BEGIN:VALARM',
@@ -162,9 +162,9 @@ export function downloadWeeklyRoutineIcs(): void {
     'BEGIN:VEVENT',
     'UID:ai-sprint-weekday-routine@yohanpro.github.io',
     `DTSTAMP:${nowStamp}`,
-    'DTSTART;TZID=Asia/Seoul:20261027T210000',
-    'DTEND;TZID=Asia/Seoul:20261027T220000',
-    'RRULE:FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=20270424T235959Z',
+    'DTSTART;TZID=Asia/Seoul:20261103T210000',
+    'DTEND;TZID=Asia/Seoul:20261103T220000',
+    'RRULE:FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=20270502T235959Z',
     'SUMMARY:🔥 [AI 전환 스프린트] 평일 1시간 집중 블록 (21:00~22:00)',
     'DESCRIPTION:평일 화·목 밤 1시간 AI 스프린트 공부 시간입니다.\\nhttps://yohanpro.github.io/ai-sprint-tracker/',
     'BEGIN:VALARM',
@@ -197,7 +197,7 @@ export function downloadSprintsTasksIcs(sprints: SprintData[], filename: string)
 
     sp.tasks.forEach((task) => {
       const [y, m, d] = sp.startDate.split('-').map(Number);
-      const slotMeta = SLOT_OFFSET_DAYS[task.slot] || { dayOffset: 0, startHour: 8, weekdayKo: '토' };
+      const slotMeta = SLOT_OFFSET_DAYS[task.slot] || { dayOffset: 5, startHour: 8, weekdayKo: '토' };
       const offsetMin = slotCursorMinutes[task.slot] || 0;
       const durationMin = Math.max(30, Math.round(task.hours * 60));
       slotCursorMinutes[task.slot] = offsetMin + durationMin;

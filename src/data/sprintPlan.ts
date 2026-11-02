@@ -192,7 +192,7 @@ export const INITIAL_APP_STATE: AppState = {
     {
       id: 'm1',
       code: 'M1',
-      timing: 'S3 끝 · 12/4',
+      timing: 'S3 끝 · 12/13',
       title: '첫 공개 데모 + 블로그 1편',
       evidenceDesc: '배포 URL, 글 링크',
       evidenceUrl: '',
@@ -201,7 +201,7 @@ export const INITIAL_APP_STATE: AppState = {
     {
       id: 'm2',
       code: 'M2',
-      timing: 'S6 끝 · 1/15',
+      timing: 'S6 끝 · 1/24',
       title: '근거를 보여주는 RAG 앱 + 품질 수치',
       evidenceDesc: '실험 전후 비교 표',
       evidenceUrl: '',
@@ -210,7 +210,7 @@ export const INITIAL_APP_STATE: AppState = {
     {
       id: 'cp',
       code: '★',
-      timing: 'S7 끝 · 1/29',
+      timing: 'S7 끝 · 2/7',
       title: '3개월 체크포인트',
       evidenceDesc: '체크포인트 페이지 작성',
       evidenceUrl: '',
@@ -219,7 +219,7 @@ export const INITIAL_APP_STATE: AppState = {
     {
       id: 'm3',
       code: 'M3',
-      timing: 'S9 끝 · 2/26',
+      timing: 'S9 끝 · 3/7',
       title: '사내 AI 기능 제안서 제출',
       evidenceDesc: '제안서 1장 + 데모',
       evidenceUrl: '',
@@ -228,7 +228,7 @@ export const INITIAL_APP_STATE: AppState = {
     {
       id: 'm4',
       code: 'M4',
-      timing: 'S13 끝 · 4/23',
+      timing: 'S13 끝 · 5/2',
       title: '대학원 지원 + 포트폴리오 + 이력서 v1',
       evidenceDesc: '제출 완료, 포트폴리오 URL',
       evidenceUrl: '',
@@ -249,7 +249,7 @@ export const INITIAL_APP_STATE: AppState = {
     { id: 'final-5', title: '포트폴리오 URL + 이력서 v1', done: false },
   ],
   parallelTrack: [
-    { id: 'pt-1', category: 'hongong', title: '혼공머신 개정판 1장 (S1–S2)', targetPeriod: '10~11월', done: false },
+    { id: 'pt-1', category: 'hongong', title: '혼공머신 개정판 1장 (S1–S2)', targetPeriod: '11월', done: false },
     { id: 'pt-2', category: 'hongong', title: '혼공머신 개정판 2장 (S3–S4)', targetPeriod: '11~12월', done: false },
     { id: 'pt-3', category: 'hongong', title: '혼공머신 개정판 3장 (S6, S8)', targetPeriod: '1~2월', done: false },
     { id: 'pt-4', category: 'hongong', title: '혼공머신 개정판 4장 (S10, S12)', targetPeriod: '3~4월', done: false },
@@ -263,9 +263,9 @@ export const INITIAL_APP_STATE: AppState = {
     {
       id: 1,
       title: 'Sprint 1',
-      period: '10/24 (토) – 11/6 (금)',
-      startDate: '2026-10-24',
-      endDate: '2026-11-06',
+      period: '11/2 (월) – 11/15 (일)',
+      startDate: '2026-11-02',
+      endDate: '2026-11-15',
       phase: 1,
       phaseName: 'Phase 1 · LLM 기본기',
       goal: '브라우저에서 스트리밍으로 답하는 내 첫 챗봇',
@@ -291,9 +291,9 @@ export const INITIAL_APP_STATE: AppState = {
     {
       id: 2,
       title: 'Sprint 2',
-      period: '11/7 (토) – 11/20 (금)',
-      startDate: '2026-11-07',
-      endDate: '2026-11-20',
+      period: '11/16 (월) – 11/29 (일)',
+      startDate: '2026-11-16',
+      endDate: '2026-11-29',
       phase: 1,
       phaseName: 'Phase 1 · LLM 기본기',
       goal: '툴을 호출하는 쇼핑 도우미 챗봇 v0.1',
@@ -318,9 +318,9 @@ export const INITIAL_APP_STATE: AppState = {
     {
       id: 3,
       title: 'Sprint 3',
-      period: '11/21 (토) – 12/4 (금)',
-      startDate: '2026-11-21',
-      endDate: '2026-12-04',
+      period: '11/30 (월) – 12/13 (일)',
+      startDate: '2026-11-30',
+      endDate: '2026-12-13',
       phase: 1,
       phaseName: 'Phase 1 · LLM 기본기',
       goal: '첫 공개 데모 + 블로그 1편 [M1]',
@@ -346,9 +346,9 @@ export const INITIAL_APP_STATE: AppState = {
     {
       id: 4,
       title: 'Sprint 4',
-      period: '12/5 (토) – 12/18 (금)',
-      startDate: '2026-12-05',
-      endDate: '2026-12-18',
+      period: '12/14 (월) – 12/27 (일)',
+      startDate: '2026-12-14',
+      endDate: '2026-12-27',
       phase: 2,
       phaseName: 'Phase 2 · RAG',
       goal: '문서를 벡터로 저장하고 의미로 검색하기',
@@ -373,9 +373,9 @@ export const INITIAL_APP_STATE: AppState = {
     {
       id: 5,
       title: 'Sprint 5',
-      period: '12/19 (토) – 1/1 (금)',
-      startDate: '2026-12-19',
-      endDate: '2027-01-01',
+      period: '12/28 (월) – 1/10 (일)',
+      startDate: '2026-12-28',
+      endDate: '2027-01-10',
       phase: 2,
       phaseName: 'Phase 2 · RAG',
       goal: '근거를 보여주는 Q&A (연말 라이트 스프린트 · 7h)',
@@ -395,9 +395,9 @@ export const INITIAL_APP_STATE: AppState = {
     {
       id: 6,
       title: 'Sprint 6',
-      period: '1/2 (토) – 1/15 (금)',
-      startDate: '2027-01-02',
-      endDate: '2027-01-15',
+      period: '1/11 (월) – 1/24 (일)',
+      startDate: '2027-01-11',
+      endDate: '2027-01-24',
       phase: 2,
       phaseName: 'Phase 2 · RAG',
       goal: 'RAG 품질을 숫자로 증명하기 [M2]',
@@ -422,9 +422,9 @@ export const INITIAL_APP_STATE: AppState = {
     {
       id: 7,
       title: 'Sprint 7',
-      period: '1/16 (토) – 1/29 (금)',
-      startDate: '2027-01-16',
-      endDate: '2027-01-29',
+      period: '1/25 (월) – 2/7 (일)',
+      startDate: '2027-01-25',
+      endDate: '2027-02-07',
       phase: 3,
       phaseName: 'Phase 3 · 에이전트 · 평가 · 사내 제안',
       goal: '여러 툴을 쓰는 에이전트 + ★ 3개월 체크포인트',
@@ -448,9 +448,9 @@ export const INITIAL_APP_STATE: AppState = {
     {
       id: 8,
       title: 'Sprint 8',
-      period: '1/30 (토) – 2/12 (금)',
-      startDate: '2027-01-30',
-      endDate: '2027-02-12',
+      period: '2/8 (월) – 2/21 (일)',
+      startDate: '2027-02-08',
+      endDate: '2027-02-21',
       phase: 3,
       phaseName: 'Phase 3 · 에이전트 · 평가 · 사내 제안',
       goal: '평가(eval) 자동화 + 비용 대시보드',
@@ -473,9 +473,9 @@ export const INITIAL_APP_STATE: AppState = {
     {
       id: 9,
       title: 'Sprint 9',
-      period: '2/13 (토) – 2/26 (금)',
-      startDate: '2027-02-13',
-      endDate: '2027-02-26',
+      period: '2/22 (월) – 3/7 (일)',
+      startDate: '2027-02-22',
+      endDate: '2027-03-07',
       phase: 3,
       phaseName: 'Phase 3 · 에이전트 · 평가 · 사내 제안',
       goal: '★ 사내 AI 기능 제안서 제출 [M3]',
@@ -500,9 +500,9 @@ export const INITIAL_APP_STATE: AppState = {
     {
       id: 10,
       title: 'Sprint 10',
-      period: '2/27 (토) – 3/12 (금)',
-      startDate: '2027-02-27',
-      endDate: '2027-03-12',
+      period: '3/8 (월) – 3/21 (일)',
+      startDate: '2027-03-08',
+      endDate: '2027-03-21',
       phase: 4,
       phaseName: 'Phase 4 · 실전 · 대학원 · 포트폴리오',
       goal: '대학원 후기 모집 조사 + 사내 PoC 착수',
@@ -526,9 +526,9 @@ export const INITIAL_APP_STATE: AppState = {
     {
       id: 11,
       title: 'Sprint 11',
-      period: '3/13 (토) – 3/26 (금)',
-      startDate: '2027-03-13',
-      endDate: '2027-03-26',
+      period: '3/22 (월) – 4/4 (일)',
+      startDate: '2027-03-22',
+      endDate: '2027-04-04',
       phase: 4,
       phaseName: 'Phase 4 · 실전 · 대학원 · 포트폴리오',
       goal: '대학원 지원 서류 초안',
@@ -551,9 +551,9 @@ export const INITIAL_APP_STATE: AppState = {
     {
       id: 12,
       title: 'Sprint 12',
-      period: '3/27 (토) – 4/9 (금)',
-      startDate: '2027-03-27',
-      endDate: '2027-04-09',
+      period: '4/5 (월) – 4/18 (일)',
+      startDate: '2027-04-05',
+      endDate: '2027-04-18',
       phase: 4,
       phaseName: 'Phase 4 · 실전 · 대학원 · 포트폴리오',
       goal: '포트폴리오 페이지 + 이력서 v1',
@@ -577,9 +577,9 @@ export const INITIAL_APP_STATE: AppState = {
     {
       id: 13,
       title: 'Sprint 13',
-      period: '4/10 (토) – 4/23 (금)',
-      startDate: '2027-04-10',
-      endDate: '2027-04-23',
+      period: '4/19 (월) – 5/2 (일)',
+      startDate: '2027-04-19',
+      endDate: '2027-05-02',
       phase: 4,
       phaseName: 'Phase 4 · 실전 · 대학원 · 포트폴리오',
       goal: '대학원 지원 + 6개월 회고 [M4]',
@@ -639,4 +639,23 @@ export function ensureIssueKeys(state: AppState): AppState {
   const dDayChecklist = state.dDayChecklist.map(withKey);
   const sprints = state.sprints.map((sp) => ({ ...sp, tasks: sp.tasks.map(withKey) }));
   return changed ? { ...state, nextIssueNumber: next, dDayChecklist, sprints } : state;
+}
+
+// 일정(기간·날짜·마일스톤 시점)은 코드 기준으로 덮어씀 — 저장된 진행 상황·메모는 그대로 유지
+export function applyPlanSchedule(state: AppState): AppState {
+  return {
+    ...state,
+    sprints: state.sprints.map((sp) => {
+      const plan = INITIAL_APP_STATE.sprints.find((p) => p.id === sp.id);
+      return plan ? { ...sp, period: plan.period, startDate: plan.startDate, endDate: plan.endDate } : sp;
+    }),
+    milestones: state.milestones.map((m) => {
+      const plan = INITIAL_APP_STATE.milestones.find((p) => p.id === m.id);
+      return plan ? { ...m, timing: plan.timing } : m;
+    }),
+    parallelTrack: state.parallelTrack.map((pt) => {
+      const plan = INITIAL_APP_STATE.parallelTrack.find((p) => p.id === pt.id);
+      return plan ? { ...pt, targetPeriod: plan.targetPeriod } : pt;
+    }),
+  };
 }

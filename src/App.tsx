@@ -62,7 +62,7 @@ const PHASE_META: Record<
 > = {
   1: {
     title: 'Phase 1 · LLM 기본기 (S1 – S3)',
-    period: '10/24 – 12/4 (6주)',
+    period: '11/2 – 12/13 (6주)',
     summary:
       '스트리밍 챗봇, Tool Use(함수 호출), Zod 구조화 출력을 익히고 첫 공개 데모와 블로그 1편(M1)을 완성합니다.',
     badgeClass: 'bg-[#DEEBFF] text-[#0747A6]',
@@ -70,7 +70,7 @@ const PHASE_META: Record<
   },
   2: {
     title: 'Phase 2 · RAG 파이프라인 (S4 – S6)',
-    period: '12/5 – 1/15 (6주)',
+    period: '12/14 – 1/24 (6주)',
     summary:
       '문서 임베딩·pgvector 검색과 근거 하이라이트 UI를 구현하고, 20문항 Eval 셋으로 적중률 개선을 숫자로 증명(M2)합니다.',
     badgeClass: 'bg-[#EAE6FF] text-[#403294]',
@@ -78,7 +78,7 @@ const PHASE_META: Record<
   },
   3: {
     title: 'Phase 3 · 에이전트 · 평가 · 사내 제안 (S7 – S9)',
-    period: '1/16 – 2/26 (6주)',
+    period: '1/25 – 3/7 (6주)',
     summary:
       '다단계 멀티툴 에이전트와 자동 채점(LLM-as-Judge)·비용 대시보드를 만들고, 3개월 체크포인트(★) 및 사내 AI 제안서(M3)를 제출합니다.',
     badgeClass: 'bg-[#FFFAE6] text-[#974F0C]',
@@ -86,7 +86,7 @@ const PHASE_META: Record<
   },
   4: {
     title: 'Phase 4 · 실전 · 대학원 · 포트폴리오 (S10 – S13)',
-    period: '2/27 – 4/23 (8주)',
+    period: '3/8 – 5/2 (8주)',
     summary:
       '사내 PoC(또는 통합 앱)와 야간 AI 대학원 원서 접수를 마무리하고, 포트폴리오 사이트와 AI 이력서 v1(M4)을 완성합니다.',
     badgeClass: 'bg-[#E3FCEF] text-[#006644]',
@@ -1358,7 +1358,7 @@ export default function App() {
                   <ChevronRight className="w-4 h-4 text-[#42526E]" />
                 )}
                 <span className="text-xs font-bold text-[#172B4D]">
-                  D-day 체크리스트 · 10월 24일 (토)
+                  D-day 체크리스트 · 11월 2일 (월)
                 </span>
                 <span className="text-xs text-[#5E6C84]">({state.dDayChecklist.length}개 이슈)</span>
               </div>
@@ -1688,7 +1688,7 @@ export default function App() {
             <div className="bg-[#F4F5F7] rounded-[3px] p-3 border border-[#DFE1E6] space-y-1.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-[#172B4D]">
-                  6개월 전체 이슈 진행 상태 (10월 24일 – 4월 23일)
+                  6개월 전체 이슈 진행 상태 (11월 2일 – 5월 2일)
                 </span>
                 <span className="text-[#5E6C84]">
                   완료 {doneTaskCount}개 · 진행 중 {inProgressTaskCount}개 · 남은 할 일{' '}
@@ -2226,7 +2226,7 @@ export default function App() {
         const guide = getTaskGuide(item.id);
         const contextLabel = isSprintIssue
           ? `${targetSprint?.title} (${targetSprint?.period}) · ${targetTask?.slot} · ${targetTask?.hours}h`
-          : `D-day 체크리스트 · 10월 24일 (토) · ${targetDDay?.duration}`;
+          : `D-day 체크리스트 · 11월 2일 (월) · ${targetDDay?.duration}`;
 
         return (
           <div
