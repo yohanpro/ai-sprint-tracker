@@ -428,7 +428,13 @@ export default function App() {
       if (cancelled) return;
       setState((prev) => {
         if (remoteState.updatedAt === prev.updatedAt) return prev;
-        const merged = mergePreserveNotes(remoteState, prev);
+        // 내가 보낸 저장이 되돌아온 경우 로컬이 더 최신 — 원격을 기준으로 삼으면 입력 중인 메모가 잘림
+        const localTime = new Date(prev.updatedAt || 0).getTime();
+        const remoteTime = new Date(remoteState.updatedAt || 0).getTime();
+        const merged =
+          remoteTime >= localTime
+            ? mergePreserveNotes(remoteState, prev)
+            : mergePreserveNotes(prev, remoteState);
         saveLocalState(merged);
         setSyncStatus('synced');
         return merged;
